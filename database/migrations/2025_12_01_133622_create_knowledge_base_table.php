@@ -11,10 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('faqs', function (Blueprint $table) {
+        Schema::create('knowledge_base', function (Blueprint $table) {
             $table->id();
-            $table->string('pregunta');
-            $table->text('respuesta');
+            $table->string('titulo');
+            $table->text('contenido');
             $table->timestamps();
         });
     }
@@ -24,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('faqs');
+        Schema::dropIfExists('knowledge_base');
     }
 };

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Faq;
+use App\Models\KnowledgeBase;
 use Illuminate\Http\Request;
 use GuzzleHttp\Client;
 
@@ -12,36 +12,42 @@ class ChatbotController extends Controller
     {
         $mensaje = strtolower($request->input('message'));
 
-        // 1. BUSCAR FAQ
-        $faq = $this->buscarFaq($mensaje);
+        // 1. BUSCAR DOCUMENTOS EN LA BD POR PALABRAS SIMPLES
+        $contexto = $this->buscarContexto($mensaje);
 
-        if ($faq) {
-            return response()->json([
-                'reply' => $faq
-            ]);
-        }
-
-        // 2. SI NO HAY FAQ → pedir a la IA
-        return $this->respuestaAI($mensaje);
+        // 2. PEDIR RESPUESTA A LA IA CON EL CONTEXTO
+        return $this->respuestaAI($mensaje, $contexto);
     }
 
-    private function buscarFaq($mensaje)
+    /**
+     * Busca coincidencias simples en la BD para usar como contexto
+     */
+    private function buscarContexto($mensaje)
     {
-        $faqs = Faq::all();
+        $mensajeNormalizado = $this->normalizar($mensaje);
 
-        foreach ($faqs as $faq) {
-            if (str_contains(strtolower($mensaje), strtolower($faq->pregunta))) {
-                return $faq->respuesta;
-            }
+        $resultados = KnowledgeBase::whereRaw("MATCH(titulo, contenido) AGAINST(? IN NATURAL LANGUAGE MODE)", [$mensaje])->limit(5)->get();
+
+        if ($resultados->isEmpty()) {
+            return null;
         }
 
-        return null;
+        // Se une todo el contenido para el prompt
+        return $resultados->pluck('contenido')->implode("\n\n---\n\n");
     }
 
-    private function respuestaAI($mensaje)
+    /**
+     * Envíar el mensaje + contexto a Groq/Llama
+     */
+    private function respuestaAI($mensaje, $contexto = null)
     {
         try {
             $client = new Client();
+
+            // Si hay contexto, se agrega al prompt
+            $contextPrompt = $contexto
+                ? "Información interna de la universidad:\n\n$contexto\n\n"
+                : "No se encontró información interna relevante para esta consulta.\n\n";
 
             $response = $client->post(env('AI_BASE_URL') . '/chat/completions', [
                 'headers' => [
@@ -53,9 +59,22 @@ class ChatbotController extends Controller
                     'messages' => [
                         [
                             'role' => 'system',
-                            'content' => 'Eres el asistente virtual de la unicatolica. Siempre que te saluden vas a decir: 
-                            Hola! soy tu asistente virtual de la Unicatolica, ¿En que puedo ayudarte el dia de hoy?.  Si te preguntan cosas que no tienen nada que ver
-                            con la Universidad Católica, responde: No estoy programado para responder preguntas fuera del ámbito Universitario.'
+                            'content' =>
+                                "Eres el asistente virtual de la Universidad Católica (Unicatólica). 
+                                Responde SIEMPRE basado en la información proporcionada en el CONTEXTO.
+                                Si no hay información suficiente en el contexto, responde:
+                                'No tengo información suficiente para responder con precisión.'
+
+                                Si te saludan, responde:
+                                'Hola! soy tu asistente virtual de la Unicatolica, ¿en qué puedo ayudarte el día de hoy?'
+
+                                Si te preguntan cosas que no son de la universidad di:
+                                'No estoy programado para responder preguntas fuera del ámbito universitario.'
+
+                                CONTEXTO:
+                                $contextPrompt
+                                FIN DEL CONTEXTO.
+                                "
                         ],
                         [
                             'role' => 'user',
@@ -77,6 +96,27 @@ class ChatbotController extends Controller
             ]);
         }
     }
+
+    private function normalizar($texto)
+    {
+        // Convertir a minúsculas
+        $texto = mb_strtolower($texto, 'UTF-8');
+
+        // Quitar acentos y normalizar caracteres
+        $texto = str_replace(
+            ['á', 'é', 'í', 'ó', 'ú', 'ü', 'ñ'],
+            ['a', 'e', 'i', 'o', 'u', 'u', 'n'],
+            $texto
+        );
+
+        // Eliminar caracteres que no son letras, números o espacios
+        $texto = preg_replace('/[^a-z0-9\s]/', ' ', $texto);
+
+        // Quitar espacios múltiples
+        $texto = preg_replace('/\s+/', ' ', $texto);
+
+        // Quitar espacios al inicio y final
+        return trim($texto);
+    }
+
 }
-
-
