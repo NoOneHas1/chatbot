@@ -37,65 +37,87 @@ class ChatbotController extends Controller
     }
 
     /**
-     * Envíar el mensaje + contexto a Groq/Llama
-     */
-    private function respuestaAI($mensaje, $contexto = null)
-    {
-        try {
-            $client = new Client();
+ * Envíar el mensaje + contexto a Groq/Llama
+ */
+private function respuestaAI($mensaje, $contexto = null)
+{
+    try {
+        $client = new Client();
 
-            // Si hay contexto, se agrega al prompt
+        // Recuperar historial de la sesión
+        $messages = session('chat_history', []);
+
+        // Si es la primera interacción, se agrega el mensaje del sistema
+        if (empty($messages)) {
             $contextPrompt = $contexto
                 ? "Información interna de la universidad:\n\n$contexto\n\n"
                 : "No se encontró información interna relevante para esta consulta.\n\n";
 
-            $response = $client->post(env('AI_BASE_URL') . '/chat/completions', [
-                'headers' => [
-                    'Authorization' => 'Bearer ' . env('AI_API_KEY'),
-                    'Content-Type' => 'application/json',
-                ],
-                'json' => [
-                    'model' => env('AI_MODEL'),
-                    'messages' => [
-                        [
-                            'role' => 'system',
-                            'content' =>
-                                "Eres el asistente virtual de la Universidad Católica (Unicatólica). 
-                                Responde SIEMPRE basado en la información proporcionada en el CONTEXTO.
-                                Si no hay información suficiente en el contexto, responde:
-                                'No tengo información suficiente para responder con precisión.'
+            $messages[] = [
+                'role' => 'system',
+                'content' =>
+                    "Eres el asistente virtual de la Universidad Católica (Unicatólica). 
+                    Responde SIEMPRE basado en la información proporcionada en el CONTEXTO.
+                    Si no puedes responder, pide aclaraciones de manera amable, nunca respondas con información inventada o que no sepas.
+                    Si no hay información suficiente en el contexto, responde:
+                    'No tengo información suficiente para responder.'
 
-                                Si te saludan, responde:
-                                'Hola! soy tu asistente virtual de la Unicatolica, ¿en qué puedo ayudarte el día de hoy?'
+                    Si te saludan, responde:
+                    'Hola! soy tu asistente virtual de la Unicatolica, ¿en qué puedo ayudarte el día de hoy?'
+                    si no te saludan, ve directo al grano.
 
-                                Si te preguntan cosas que no son de la universidad di:
-                                'No estoy programado para responder preguntas fuera del ámbito universitario.'
+                    Si te preguntan cosas que no son de la universidad di:
+                    'No estoy programado para responder preguntas fuera del ámbito universitario.'
 
-                                CONTEXTO:
-                                $contextPrompt
-                                FIN DEL CONTEXTO.
-                                "
-                        ],
-                        [
-                            'role' => 'user',
-                            'content' => $mensaje
-                        ],
-                    ]
-                ],
-            ]);
+                    Si puedes resumir la informacion en el contexto, hazlo de manera clara y concisa.
 
-            $data = json_decode($response->getBody(), true);
-
-            return response()->json([
-                'reply' => $data['choices'][0]['message']['content'] ?? "No pude generar respuesta."
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'reply' => "Hubo un error con la IA: " . $e->getMessage(),
-            ]);
+                    CONTEXTO:
+                    $contextPrompt
+                    FIN DEL CONTEXTO."
+            ];
         }
+
+        // Agregar mensaje del usuario al historial
+        $messages[] = [
+            'role' => 'user',
+            'content' => $mensaje
+        ];
+
+        $response = $client->post(env('AI_BASE_URL') . '/chat/completions', [
+            'headers' => [
+                'Authorization' => 'Bearer ' . env('AI_API_KEY'),
+                'Content-Type' => 'application/json',
+            ],
+            'json' => [
+                'model' => env('AI_MODEL'),
+                'messages' => $messages
+            ],
+        ]);
+
+        $data = json_decode($response->getBody(), true);
+
+        $reply = $data['choices'][0]['message']['content'] ?? "No pude generar respuesta.";
+
+        // Guardar respuesta del asistente en el historial
+        $messages[] = [
+            'role' => 'assistant',
+            'content' => $reply
+        ];
+
+        // Guardar historial actualizado en sesión
+        session(['chat_history' => $messages]);
+
+        return response()->json([
+            'reply' => $reply
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'reply' => "Hubo un error con la IA: " . $e->getMessage(),
+        ]);
     }
+}
+
 
     private function normalizar($texto)
     {

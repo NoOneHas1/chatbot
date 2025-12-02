@@ -20,6 +20,11 @@
             cursor: pointer;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
             z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        #chat-btn:hover {
+            background-color: #dfb023;
         }
 
         /* WIDGET DEL CHAT */
@@ -119,6 +124,11 @@
             border-right: 8px solid transparent;
         }
 
+        .message.bot a {
+            color: #0f3b53;
+            text-decoration: underline;
+        }
+
         /* INPUT Y BOTÓN */
         #chat-input {
             display: flex;
@@ -212,7 +222,7 @@
                 // Mostrar mensaje del bot
                 const botMsg = document.createElement("div");
                 botMsg.classList.add("message", "bot");
-                botMsg.textContent = data.reply || "No hay respuesta.";
+                botMsg.innerHTML = data.reply.replace(/\n/g, "<br>") || "No hay respuesta.";
                 chatMessages.appendChild(botMsg);
                 chatMessages.scrollTop = chatMessages.scrollHeight;
             } catch (err) {
