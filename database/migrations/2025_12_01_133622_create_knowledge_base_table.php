@@ -15,9 +15,13 @@ return new class extends Migration
             $table->id();
             $table->string('titulo');
             $table->text('contenido');
+            $table->string('tags')->nullable(); // etiquetas separadas por coma
             $table->timestamps();
+
+            $table->fullText(['titulo', 'contenido']);
         });
     }
+
 
     /**
      * Reverse the migrations.

@@ -10,6 +10,7 @@ class KnowledgeBase extends Model
 
     protected $fillable = [
         'titulo',
-        'contenido'
+        'contenido',
+        'tags'
     ];
 }
