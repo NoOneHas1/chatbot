@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\KnowledgeBase;
+use App\Models\MenuItem;
 use Illuminate\Http\Request;
 use GuzzleHttp\Client;
 
@@ -11,51 +12,84 @@ class ChatbotController extends Controller
     public function handle(Request $request)
     {
         $mensaje = strtolower($request->input('message'));
-        $tag = $request->input('tag'); // parámetro opcional para filtrar por etiqueta
+        $menuPath = $request->input('menu_path', []);
 
-        // 1. Buscar documentos en la BD
-        $contexto = $this->buscarContexto($mensaje, $tag);
+        // 1. Manejo de menú dinámico
+        $menuResponse = $this->handleMenu($mensaje, $menuPath);
+        if ($menuResponse) {
+            return response()->json($menuResponse);
+        }
 
-        // 2. Pedir respuesta a la IA con el contexto
-        return $this->respuestaAI($mensaje, $contexto);
+        // 2. Buscar información en la base de conocimiento
+        $contexto = $this->buscarContexto($mensaje);
+
+        // 3. Respuesta IA
+        return $this->respuestaAI($mensaje, $contexto, $menuPath);
     }
 
-    /**
-     * Busca coincidencias en la BD filtrando por tag si existe
-     */
-    private function buscarContexto($mensaje, $tag = null)
+    private function handleMenu($mensaje, $menuPath)
+    {
+        $parentId = count($menuPath) > 0 ? end($menuPath) : null;
+
+        // Si mensaje vacío, mostrar menú raíz o submenú según nivel
+        if ($mensaje === '') {
+            $menuItems = $parentId
+                ? MenuItem::where('parent_id', $parentId)->get()
+                : MenuItem::whereNull('parent_id')->get();
+
+            if ($menuItems->isEmpty()) return null;
+
+            return [
+                'reply' => 'Por favor, selecciona una opción:',
+                'menu' => $menuItems->pluck('label')->toArray(),
+                'menu_path' => $menuPath
+            ];
+        }
+
+        // Buscar opción exacta en el menú actual
+        $menuItems = $parentId
+            ? MenuItem::where('parent_id', $parentId)->get()
+            : MenuItem::whereNull('parent_id')->get();
+
+        $selected = $menuItems->firstWhere('label', $mensaje);
+
+        if (!$selected) return null;
+
+        // Obtener hijos
+        $children = MenuItem::where('parent_id', $selected->id)->get();
+
+        if ($children->isNotEmpty()) {
+            $newMenuPath = $menuPath;
+            $newMenuPath[] = $selected->id;
+
+            return [
+                'reply' => 'Selecciona una opción:',
+                'menu' => $children->pluck('label')->toArray(),
+                'menu_path' => $newMenuPath
+            ];
+        }
+
+        // No tiene hijos, respuesta final
+        return [
+            'reply' => $selected->respuesta ?: "No tengo información suficiente para responder. Por favor, contacta a un asesor en asesor@unicatolica.edu.co",
+            'menu' => [],
+            'menu_path' => $menuPath // Mantener historial
+        ];
+    }
+
+    private function buscarContexto($mensaje)
     {
         $mensajeNormalizado = $this->normalizar($mensaje);
 
-        $query = KnowledgeBase::query();
+        $resultados = KnowledgeBase::whereRaw(
+            "MATCH(titulo, contenido) AGAINST(? IN NATURAL LANGUAGE MODE)",
+            [$mensajeNormalizado]
+        )->limit(5)->get();
 
-        if ($tag) {
-            $query->whereRaw("FIND_IN_SET(?, tags)", [$tag]);
-        }
-
-        $resultados = $query
-            ->whereRaw("MATCH(titulo, contenido) AGAINST(? IN NATURAL LANGUAGE MODE)", [$mensajeNormalizado])
-            ->limit(5)
-            ->get();
-
-        // Si no hay resultados filtrando por tag, buscar en toda la tabla
-        if ($resultados->isEmpty() && $tag) {
-            $resultados = KnowledgeBase::whereRaw("MATCH(titulo, contenido) AGAINST(? IN NATURAL LANGUAGE MODE)", [$mensajeNormalizado])
-                ->limit(5)
-                ->get();
-        }
-
-        if ($resultados->isEmpty()) {
-            return null;
-        }
-
-        return $resultados->pluck('contenido')->implode("\n\n---\n\n");
+        return $resultados->isEmpty() ? null : $resultados->pluck('contenido')->implode("\n\n---\n\n");
     }
 
-    /**
-     * Envía el mensaje + contexto a Groq/Llama
-     */
-    private function respuestaAI($mensaje, $contexto = null)
+    private function respuestaAI($mensaje, $contexto = null, $menuPath = [])
     {
         try {
             $client = new Client();
@@ -81,9 +115,9 @@ class ChatbotController extends Controller
                         Si te preguntan cosas que no son de la universidad di:
                         'No estoy programado para responder preguntas fuera del ámbito universitario.'
 
-                        CONTEXTO:
-                        $contextPrompt
-                        FIN DEL CONTEXTO."
+CONTEXTO:
+$contextPrompt
+FIN DEL CONTEXTO."
                 ];
             }
 
@@ -113,14 +147,18 @@ class ChatbotController extends Controller
 
             session(['chat_history' => $messages]);
 
-            return response()->json([
-                'reply' => $reply
-            ]);
+            return [
+                'reply' => $reply,
+                'menu' => [],  // Menú vacío porque ya es respuesta IA
+                'menu_path' => $menuPath
+            ];
 
         } catch (\Exception $e) {
-            return response()->json([
+            return [
                 'reply' => "Hubo un error con la IA: " . $e->getMessage(),
-            ]);
+                'menu' => [],
+                'menu_path' => $menuPath
+            ];
         }
     }
 

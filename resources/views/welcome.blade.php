@@ -165,79 +165,155 @@
         #chat-input button:hover {
             background-color: #e6b320;
         }
+
+    /* Botones de menú */
+        .option-btn {
+            display: block;
+            width: 100%;
+            margin: 6px 0;
+            padding: 10px;
+            background: #f7c221;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            color: #0f3b53;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .option-btn:hover { background: #e6b320; }
     </style>
 </head>
 <body>
 
    @include('widgets.chat')
+<script>
+    const chatBtn = document.getElementById("chat-btn");
+const chatWidget = document.getElementById("chat-widget");
+const chatMessages = document.getElementById("chat-messages");
+const msgInput = document.getElementById("msgInput");
 
-    <script>
-        const chatBtn = document.getElementById("chat-btn");
-        const chatWidget = document.getElementById("chat-widget");
-        const chatMessages = document.getElementById("chat-messages");
-        const msgInput = document.getElementById("msgInput");
+let currentMenuPath = [];
 
-        // Mostrar / Ocultar widget al hacer clic en el botón
-        chatBtn.addEventListener("click", () => {
-             if (chatWidget.style.display === "flex") {
-                    chatWidget.style.display = "none";
-            } else {
-                chatWidget.style.display = "flex";
+chatBtn.addEventListener("click", () => {
+    if (chatWidget.style.display === "flex") {
+        chatWidget.style.display = "none";
+    } else {
+        chatWidget.style.display = "flex";
 
-        // >>> Solo mostrar el mensaje de bienvenida si aún no hay mensajes del bot
-        const existingWelcome = chatMessages.querySelector(".message.bot");
-        if (!existingWelcome) {
-            const welcomeMsg = document.createElement("div");
-            welcomeMsg.classList.add("message", "bot");
-            welcomeMsg.textContent = "Hola! Soy tu asistente virtual de la Universidad Católica, ¿En qué puedo ayudarte hoy?";
-            chatMessages.appendChild(welcomeMsg);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+        if (!chatMessages.querySelector(".message.bot")) {
+            appendBotMessage("Hola! Soy tu asistente virtual de la Universidad Católica, ¿en qué puedo ayudarte hoy?");
+            fetchMenu(''); // Mostrar menú raíz
         }
     }
 });
 
+function appendBotMessage(text) {
+    const botMsg = document.createElement("div");
+    botMsg.classList.add("message", "bot");
+    botMsg.innerHTML = text.replace(/\n/g, "<br>");
+    chatMessages.appendChild(botMsg);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
 
-        // Función para enviar mensaje
-        async function sendMessage() {
-            const message = msgInput.value.trim();
-            if (!message) return;
+function appendUserMessage(text) {
+    const userMsg = document.createElement("div");
+    userMsg.classList.add("message", "user");
+    userMsg.textContent = text;
+    chatMessages.appendChild(userMsg);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
 
-            // Mostrar mensaje del usuario
-            const userMsg = document.createElement("div");
-            userMsg.classList.add("message", "user");
-            userMsg.textContent = message;
-            chatMessages.appendChild(userMsg);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-
-            msgInput.value = "";
-
-            try {
-                const response = await fetch("/api/chatbot", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({message})
-                });
-                const data = await response.json();
-
-                // Mostrar mensaje del bot
-                const botMsg = document.createElement("div");
-                botMsg.classList.add("message", "bot");
-                botMsg.innerHTML = data.reply.replace(/\n/g, "<br>") || "No hay respuesta.";
-                chatMessages.appendChild(botMsg);
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            } catch (err) {
-                const errorMsg = document.createElement("div");
-                errorMsg.classList.add("message", "bot");
-                errorMsg.textContent = "Error al conectarse al chatbot.";
-                chatMessages.appendChild(errorMsg);
-            }
+function showMenuOptions(options) {
+    options.forEach(option => {
+        // Evitar duplicados
+        if (!Array.from(chatMessages.querySelectorAll("button.option-btn")).some(btn => btn.textContent === option)) {
+            const btn = document.createElement("button");
+            btn.classList.add("option-btn");
+            btn.textContent = option;
+            btn.style.margin = "3px 5px 3px 0";
+            btn.onclick = () => handleMenuSelection(option);
+            chatMessages.appendChild(btn);
         }
+    });
 
-        // Enviar mensaje con Enter
-        msgInput.addEventListener("keypress", function(e){
-            if(e.key === 'Enter') sendMessage();
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+async function fetchMenu(option) {
+    try {
+        const response = await fetch("/api/chatbot", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ message: option, menu_path: currentMenuPath })
         });
-    </script>
+
+        const data = await response.json();
+        currentMenuPath = data.menu_path || [];
+
+        appendBotMessage(data.reply);
+
+        if (data.menu && data.menu.length > 0) {
+            showMenuOptions(data.menu);
+        }
+    } catch (err) {
+        appendBotMessage("Error al comunicarse con el servidor.");
+    }
+}
+
+async function handleMenuSelection(optionLabel) {
+    appendUserMessage(optionLabel);
+
+    // Solo deshabilitar el botón clickeado
+    const buttons = chatMessages.querySelectorAll("button.option-btn");
+    buttons.forEach(btn => {
+        if (btn.textContent === optionLabel) {
+            btn.disabled = true;
+            btn.style.opacity = "0.6";
+            btn.style.cursor = "default";
+        } else {
+            btn.disabled = false;
+            btn.style.opacity = "1";
+            btn.style.cursor = "pointer";
+        }
+    });
+
+    await fetchMenu(optionLabel);
+}
+
+async function sendMessage() {
+    const message = msgInput.value.trim();
+    if (!message) return;
+
+    appendUserMessage(message);
+    msgInput.value = "";
+
+    // Limpiar botones porque mensaje libre no es menú
+    const buttons = chatMessages.querySelectorAll("button.option-btn");
+    buttons.forEach(btn => btn.remove());
+
+    try {
+        const response = await fetch("/api/chatbot", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ message })
+        });
+        const data = await response.json();
+
+        appendBotMessage(data.reply);
+        currentMenuPath = [];
+    } catch (err) {
+        appendBotMessage("Error al conectarse al chatbot.");
+    }
+}
+
+msgInput.addEventListener("keypress", e => {
+    if (e.key === "Enter") sendMessage();
+});
+</script>
+
+
+
+
 
 </body>
 </html>
