@@ -274,10 +274,19 @@ async function loadRootMenu() {
 }
 
 // Función para mostrar botones de menú
-function showMenuButtons(items) {
+function showMenuButtons(items, messageText = "") {
+    // Contenedor único del mensaje del bot
     const wrapper = document.createElement("div");
     wrapper.classList.add("message", "bot");
 
+    // Si hay texto dinámico, se muestra arriba de los botones
+    if (messageText) {
+        const textDiv = document.createElement("div");
+        textDiv.textContent = messageText;
+        wrapper.appendChild(textDiv);
+    }
+
+    // Botones de submenú
     items.forEach(item => {
         const btn = document.createElement("button");
         btn.classList.add("menu-btn");
@@ -286,14 +295,19 @@ function showMenuButtons(items) {
         wrapper.appendChild(btn);
     });
 
+    // Botón de volver al menú principal
+    const backBtn = document.createElement("button");
+    backBtn.classList.add("menu-btn");
+    backBtn.style.background = "#ddd";
+    backBtn.style.color = "#0f3b53";
+    backBtn.textContent = "⬅ Volver al menú principal";
+    backBtn.onclick = () => loadRootMenu();
+    wrapper.appendChild(backBtn);
+
+    // Agregamos todo al chat
     chatMessages.appendChild(wrapper);
     chatMessages.scrollTop = chatMessages.scrollHeight;
-
-    // Al final se agrega el botón de volver a menú principal
-    showBackToRoot();
 }
-
-
 
 
 
@@ -304,32 +318,34 @@ async function selectMenu(menuId) {
         const data = await res.json();
 
         if (data.type === "menu" && data.items.length > 0) {
-            showMenuButtons(data.items); 
+            // mensaje dinámico generado por IA aquí
+            const messageText = data.message || "Por favor, selecciona una opción:";
+            showMenuButtons(data.items, messageText); 
         }
         else if (data.type === "response") {
             showBotMessage(data.text);
-
-            // Siempre mostrar botón para volver al menú raíz
-            showBackToRoot();
         }
         else {
             showBotMessage("No hay información disponible.");
-            showBackToRoot();
         }
 
     } catch(err) {
         console.error(err);
         showBotMessage("Error al cargar el menú.");
-        showBackToRoot();
     }
 }
 
 
 
+
 //Funcion para volver al menu anterior
 function showBackToRoot() {
+    // Eliminamos cualquier botón de volver anterior
+    const existingBack = chatMessages.querySelector(".back-btn-wrap");
+    if (existingBack) existingBack.remove();
+
     const wrap = document.createElement("div");
-    wrap.classList.add("message", "bot");
+    wrap.classList.add("message", "bot", "back-btn-wrap"); // agregamos clase para identificarlo
 
     const btn = document.createElement("button");
     btn.classList.add("menu-btn");
@@ -338,14 +354,14 @@ function showBackToRoot() {
     btn.textContent = "⬅ Volver al menú principal";
 
     btn.onclick = () => {
-        // Simplemente carga el menú raíz
-        loadRootMenu();
+        loadRootMenu(); // carga menú raíz
     };
 
     wrap.appendChild(btn);
     chatMessages.appendChild(wrap);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
+
 
 
 
