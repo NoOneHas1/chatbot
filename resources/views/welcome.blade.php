@@ -5,239 +5,416 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chatbot Institucional</title>
     <style>
-        /* BOTÓN FLOTANTE */
-        #chat-btn {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background-color: #f7c221;
-            color: #ffff;
-            border: none;
-            border-radius: 50%;
-            width: 60px;
-            height: 60px;
-            font-size: 28px;
-            cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            z-index: 1000;
-            transition: all 0.3s ease;
-        }
+       /* BOTÓN FLOTANTE */
+    #chat-btn {
+        position: fixed;
+        bottom: 22px;
+        right: 22px;
+        background: #f7c221;
+        border: none;
+        border-radius: 50%;
+        width: 62px;
+        height: 62px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: #0f3b53;
+        font-size: 28px;
+        cursor: pointer;
+        box-shadow: 0 6px 15px rgba(0,0,0,0.25);
+        z-index: 1000;
+        transition: 0.25s ease;
+    }
+    #chat-btn:hover { transform: scale(1.07); background: #e6b320; }
 
-        #chat-btn:hover {
-            background-color: #dfb023;
-        }
+    /* WIDGET */
+    #chat-widget {
+        position: fixed;
+        bottom: 95px;
+        right: 22px;
+        width: 370px;
+        max-height: 540px;
+        background: #ffffff;
+        border-radius: 18px;
+        display: none;
+        flex-direction: column;
+        overflow: hidden;
+        z-index: 999;
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        color: #0f3b53;
+        animation: popIn 0.25s ease;
+        box-shadow: 0 10px 25px rgba(15, 59, 83, 0.25);
+    }
 
-        /* WIDGET DEL CHAT */
-        #chat-widget {
-            position: fixed;
-            bottom: 90px;
-            right: 20px;
-            width: 360px;
-            max-height: 520px;
-            background: #ffffff;
-            border-radius: 15px;
-            box-shadow: 0 8px 25px rgba(15, 59, 83, 0.2);
-            display: none;
-            flex-direction: column;
-            overflow: hidden;
-            z-index: 999;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #0f3b53;
-        }
+    /* Animación suave */
+    @keyframes popIn {
+        from { transform: scale(.9); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
 
-        /* CABECERA */
-        #chat-header {
-            background: #f7c221;
-            color: #0f3b53;
-            padding: 15px 20px;
-            font-weight: 700;
-            font-size: 1.2rem;
-            text-align: start;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-            user-select: none;
-        }
+    /* HEADER */
+    #chat-header {
+        background: linear-gradient(90deg, #f7c221, #ffdd5e);
+        padding: 16px 20px;
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #0f3b53;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
 
-        /* CONTENEDOR DE MENSAJES */
-        #chat-messages {
-            flex: 1;
-            padding: 20px 15px;
-            overflow-y: auto;
-            background: #f9f9f9;
-            scrollbar-width: thin;
-            scrollbar-color: #f7c221 transparent;
-        }
+    /* MENSAJES */
+    #chat-messages {
+        flex: 1;
+        padding: 20px 18px;
+        overflow-y: auto;
+        background: #f3f3f3;
+        scrollbar-width: thin;
+        scrollbar-color: #0f3b53 transparent;
+    }
 
-        /* Scrollbar */
-        #chat-messages::-webkit-scrollbar {
-            width: 6px;
-        }
+    #chat-messages::-webkit-scrollbar { width: 6px; }
+    #chat-messages::-webkit-scrollbar-thumb { background: #0f3b53; border-radius: 3px; }
 
-        #chat-messages::-webkit-scrollbar-thumb {
-            background-color: #0f3b53;
-            border-radius: 10px;
-        }
+    .message {
+        margin-bottom: 16px;
+        padding: 12px 18px;
+        max-width: 78%;
+        border-radius: 16px;
+        font-size: 14.5px;
+        line-height: 1.45;
+        position: relative;
+        clear: both;
+    }
 
-        /* MENSAJES */
-        .message {
-            margin-bottom: 14px;
-            padding: 12px 18px;
-            max-width: 75%;
-            font-size: 14.5px;
-            line-height: 1.4;
-            position: relative;
-            clear: both;
-            border-radius: 20px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-        }
+    /* Usuario */
+    .message.user {
+        background: #0f3b53;
+        color: #fff;
+        float: right;
+        border-bottom-right-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
 
-        /* MENSAJE DEL USUARIO */
-        .message.user {
-            background: #0f3b53;
-            color: #fff;
-            float: right;
-            border-bottom-right-radius: 4px;
-            border-top-left-radius: 20px;
-            border-top-right-radius: 20px;
-        }
+    /* Bot */
+    .message.bot {
+        background: #ffffff;
+        color: #0f3b53;
+        float: left;
+        border: 1px solid #e4e4e4;
+        border-bottom-left-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
 
+    /* BOTONES DE MENÚ (DISEÑO “TARJETA”) */
+    .menu-btn {
+        display: block;
+        width: 100%;
+        text-align: left;
+        padding: 12px 14px;
+        background: #f7c221;
+        font-weight: 600;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        margin-top: 12px;
+        color: #0f3b53;
+        transition: 0.2s ease;
+    }
+    .menu-btn:hover {
+        background: #dfb023;
+        transform: translateY(-2px);
+    }
 
-        /* MENSAJE DEL BOT */
-        .message.bot {
-            background: #f5f5f5;
-            color: #0f3b53;
-            float: left;
-            border-bottom-left-radius: 4px;
-            border-top-right-radius: 20px;
-            border-top-left-radius: 20px;
-            border: 1px solid #e0e0e0;
-        }
+    /* BOTÓN VOLVER AL INICIO */
+    .back-btn {
+        display: block;
+        margin-top: 15px;
+        padding: 10px;
+        width: 100%;
+        border-radius: 12px;
+        background: #0f3b53;
+        color: #fff;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: 0.2s ease;
+    }
+    .back-btn:hover {
+        background: #0d3246;
+        transform: translateY(-2px);
+    }
 
-        /* Agregar "cola" en mensaje bot */
-        .message.bot::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: -8px;
-            width: 0;
-            height: 0;
-            border-top: 12px solid #f7f7f7;
-            border-right: 8px solid transparent;
-        }
+    /* INPUT */
+    #chat-input { 
+        display: flex;
+        border-top: 1px solid #ddd;
+        background: #ffffff;
+    }
 
-        .message.bot a {
-            color: #0f3b53;
-            text-decoration: underline;
-        }
+    #chat-input input {
+        flex: 1;
+        padding: 14px 20px;
+        border: none;
+        outline: none;
+        font-size: 15px;
+        color: #0f3b53;
+        background: #ffffff;
+    }
 
-        /* INPUT Y BOTÓN */
-        #chat-input {
-            display: flex;
-            border-top: 1px solid #ddd;
-            background: #ffffff;
-        }
+    #chat-input button {
+        background: #f7c221;
+        border: none;
+        padding: 0 25px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: 0.2s ease;
+    }
+    #chat-input button:hover { background-color: #e6b320; }
 
-        #chat-input input {
-            flex: 1;
-            padding: 15px 20px;
-            border: none;
-            outline: none;
-            font-size: 15px;
-            font-weight: 500;
-            color: #0f3b53;
-        }
+    /* CHECKBOX TÉRMINOS */
+    .terms-container label a {
+        color: #0f3b53;
+        font-weight: bold;
+    }
 
-        #chat-input input::placeholder {
-            color: #999;
-            font-style: italic;
-        }
-
-        #chat-input button {
-            background: #f7c221;
-            font-size: 15px;
-            font-weight: 700;
-            color: #0f3b53;
-            border: none;
-            padding: 0 25px;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-
-        #chat-input button:hover {
-            background-color: #e6b320;
-        }
     </style>
 </head>
 <body>
 
-   @include('widgets.chat')
+@include('widgets.chat')
 
-    <script>
-        const chatBtn = document.getElementById("chat-btn");
-        const chatWidget = document.getElementById("chat-widget");
-        const chatMessages = document.getElementById("chat-messages");
-        const msgInput = document.getElementById("msgInput");
+<script>
+const chatBtn = document.getElementById("chat-btn");
+const chatWidget = document.getElementById("chat-widget");
+const chatMessages = document.getElementById("chat-messages");
+const msgInput = document.getElementById("msgInput");
 
-        // Mostrar / Ocultar widget al hacer clic en el botón
-        chatBtn.addEventListener("click", () => {
-             if (chatWidget.style.display === "flex") {
-                    chatWidget.style.display = "none";
-            } else {
-                chatWidget.style.display = "flex";
+// Variables de estado
+let acceptedTerms = false;
 
-        // >>> Solo mostrar el mensaje de bienvenida si aún no hay mensajes del bot
-        const existingWelcome = chatMessages.querySelector(".message.bot");
-        if (!existingWelcome) {
-            const welcomeMsg = document.createElement("div");
-            welcomeMsg.classList.add("message", "bot");
-            welcomeMsg.textContent = "Hola! Soy tu asistente virtual de la Universidad Católica, ¿En qué puedo ayudarte hoy?";
-            chatMessages.appendChild(welcomeMsg);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+// Mostrar / Ocultar widget
+chatBtn.addEventListener("click", () => {
+    if(chatWidget.style.display === "flex") {
+        chatWidget.style.display = "none";
+    } else {
+        chatWidget.style.display = "flex";
+        if(!chatMessages.querySelector(".message.bot")) {
+            showWelcome();
         }
     }
 });
 
+// Función de bienvenida y términos
+function showWelcome() {
+    const termsMsg = document.createElement("div");
+    termsMsg.classList.add("message", "bot");
+    termsMsg.innerHTML = `
+        <div class="terms-container" style="margin-bottom: 10px;">
+            <input type="checkbox" id="acceptTerms" />
+            <label for="acceptTerms">
+                Antes de iniciar, por favor acepta nuestros 
+                <a href="#" target="_blank">términos y condiciones</a>:
+            </label>
+            <button class='menu-btn' id='accept-terms-btn' disabled style="opacity: 0.6; cursor: not-allowed;">Aceptar Términos</button>
+        </div>
+    `;
+    chatMessages.appendChild(termsMsg);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 
-        // Función para enviar mensaje
-        async function sendMessage() {
-            const message = msgInput.value.trim();
-            if (!message) return;
+    const checkbox = termsMsg.querySelector("#acceptTerms");
+    const acceptBtn = termsMsg.querySelector("#accept-terms-btn");
 
-            // Mostrar mensaje del usuario
-            const userMsg = document.createElement("div");
-            userMsg.classList.add("message", "user");
-            userMsg.textContent = message;
-            chatMessages.appendChild(userMsg);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+    // Activar/desactivar botón según checkbox
+    checkbox.addEventListener("change", () => {
+        if (checkbox.checked) {
+            acceptBtn.disabled = false;
+            acceptBtn.style.opacity = "1";
+            acceptBtn.style.cursor = "pointer";
+        } else {
+            acceptBtn.disabled = true;
+            acceptBtn.style.opacity = "0.6";
+            acceptBtn.style.cursor = "not-allowed";
+        }
+    });
 
-            msgInput.value = "";
+    // Click del botón
+    acceptBtn.addEventListener("click", () => {
+        acceptedTerms = true;
+        termsMsg.remove();
+        showBotMessage("¡Hola! Soy tu asistente virtual de la Universidad Católica. ¿En qué puedo ayudarte hoy?");
+        loadRootMenu();
+    });
+}
 
-            try {
-                const response = await fetch("/api/chatbot", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({message})
-                });
-                const data = await response.json();
 
-                // Mostrar mensaje del bot
-                const botMsg = document.createElement("div");
-                botMsg.classList.add("message", "bot");
-                botMsg.innerHTML = data.reply.replace(/\n/g, "<br>") || "No hay respuesta.";
-                chatMessages.appendChild(botMsg);
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            } catch (err) {
-                const errorMsg = document.createElement("div");
-                errorMsg.classList.add("message", "bot");
-                errorMsg.textContent = "Error al conectarse al chatbot.";
-                chatMessages.appendChild(errorMsg);
-            }
+// Función para mostrar mensaje bot
+function showBotMessage(text) {
+    const botMsg = document.createElement("div");
+    botMsg.classList.add("message", "bot");
+    botMsg.innerHTML = text.replace(/\n/g, "<br>");
+    chatMessages.appendChild(botMsg);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// Función para mostrar menú raíz
+async function loadRootMenu() {
+    try {
+        const res = await fetch("/api/menu");
+        const data = await res.json();
+
+        if (data.type === "menu") {
+            showMenuButtons(data.items); // <-- solo el array
+        } else {
+            showBotMessage(data.text); // si es respuesta final
+        }
+    } catch(err) {
+        console.error(err);
+        showBotMessage("No se pudo cargar el menú.");
+    }
+}
+
+// Función para mostrar botones de menú
+function showMenuButtons(items) {
+    const wrapper = document.createElement("div");
+    wrapper.classList.add("message", "bot");
+
+    items.forEach(item => {
+        const btn = document.createElement("button");
+        btn.classList.add("menu-btn");
+        btn.textContent = item.title;
+        btn.onclick = () => selectMenu(item.id);
+        wrapper.appendChild(btn);
+    });
+
+    chatMessages.appendChild(wrapper);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    // Al final se agrega el botón de volver a menú principal
+    showBackToRoot();
+}
+
+
+
+
+
+// Función para seleccionar menú/submenú
+async function selectMenu(menuId) {
+    try {
+        const res = await fetch(`/api/menu/${menuId}`);
+        const data = await res.json();
+
+        if (data.type === "menu" && data.items.length > 0) {
+            showMenuButtons(data.items); 
+        }
+        else if (data.type === "response") {
+            showBotMessage(data.text);
+
+            // Siempre mostrar botón para volver al menú raíz
+            showBackToRoot();
+        }
+        else {
+            showBotMessage("No hay información disponible.");
+            showBackToRoot();
         }
 
-        // Enviar mensaje con Enter
-        msgInput.addEventListener("keypress", function(e){
-            if(e.key === 'Enter') sendMessage();
+    } catch(err) {
+        console.error(err);
+        showBotMessage("Error al cargar el menú.");
+        showBackToRoot();
+    }
+}
+
+
+
+//Funcion para volver al menu anterior
+function showBackToRoot() {
+    const wrap = document.createElement("div");
+    wrap.classList.add("message", "bot");
+
+    const btn = document.createElement("button");
+    btn.classList.add("menu-btn");
+    btn.style.background = "#ddd";
+    btn.style.color = "#0f3b53";
+    btn.textContent = "⬅ Volver al menú principal";
+
+    btn.onclick = () => {
+        // Simplemente carga el menú raíz
+        loadRootMenu();
+    };
+
+    wrap.appendChild(btn);
+    chatMessages.appendChild(wrap);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+
+
+//Funcion para enviar mensaje
+async function sendMessage() {
+    if(!acceptedTerms) {
+        alert("Debes aceptar los términos y condiciones antes de escribir.");
+        return;
+    }
+
+    const message = msgInput.value.trim();
+    if (!message) return;
+
+    // Mostrar mensaje usuario
+    const userMsg = document.createElement("div");
+    userMsg.classList.add("message", "user");
+    userMsg.textContent = message;
+    chatMessages.appendChild(userMsg);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    msgInput.value = "";
+
+    try {
+        const response = await fetch("/api/chatbot", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({message})
         });
-    </script>
+
+        const data = await response.json();
+
+        // Revisamos si es menú
+        if(data.type === 'menu' && data.items && data.items.length > 0) {
+            showMenuButtons(data.items);
+        } 
+        // Si es respuesta normal de IA
+        else if(data.type === 'response') {
+            let replyText = "";
+            if(data.text) {
+                // Si viene como objeto, extraemos el reply
+                if(typeof data.text === "object" && data.text.original && data.text.original.reply) {
+                    replyText = data.text.original.reply;
+                } else if(typeof data.text === "string") {
+                    replyText = data.text;
+                } else {
+                    replyText = "No hay información disponible.";
+                }
+            } else {
+                replyText = "No hay información disponible.";
+            }
+            showBotMessage(replyText);
+        } 
+        else {
+            showBotMessage("No hay información disponible.");
+        }
+
+    } catch(err) {
+        showBotMessage("Error al conectarse al chatbot: " + err);
+    }
+}
+
+// Enviar con Enter
+msgInput.addEventListener("keypress", function(e){
+    if(e.key === 'Enter') sendMessage();
+});
+
+
+
+</script>
 
 </body>
 </html>

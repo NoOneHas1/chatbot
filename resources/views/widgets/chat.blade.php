@@ -1,5 +1,5 @@
  <!-- BOTÓN FLOTANTE -->
-    <button id="chat-btn"><img src="{{ asset('storage/images/icons/robot-solid-full.svg') }}" alt="Robot" style="width: 35px; margin-top: 5px;"></button>
+    <button id="chat-btn"><img src="{{ asset('storage/images/chatbot.svg') }}" alt="Robot" style="width: 35px; margin-top: 5px;"></button>
 
     <!-- WIDGET -->
     <div id="chat-widget">

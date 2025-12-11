@@ -3,26 +3,102 @@
 namespace App\Http\Controllers;
 
 use App\Models\KnowledgeBase;
+use App\Models\MenuItem;
 use Illuminate\Http\Request;
 use GuzzleHttp\Client;
 
 class ChatbotController extends Controller
 {
     public function handle(Request $request)
-    {
-        $mensaje = strtolower($request->input('message'));
-        $tag = $request->input('tag'); // parámetro opcional para filtrar por etiqueta
+{
+    $mensaje = strtolower($request->input('message'));
+    $tag = $request->input('tag'); // opcional
 
-        // 1. Buscar documentos en la BD
-        $contexto = $this->buscarContexto($mensaje, $tag);
+    // 1. Intentar clasificar el mensaje hacia un menú
+    $menuId = $this->detectarMenu($mensaje);
 
-        // 2. Pedir respuesta a la IA con el contexto
-        return $this->respuestaAI($mensaje, $contexto);
+    if ($menuId) {
+        // Si detecta un menú, devolvemos el menú/submenú
+        $menuResponse = (new MenuController)->children($menuId);
+        
+        // Retornamos un JSON uniforme con la clave 'type' y 'items' para JS
+        if ($menuResponse->getData()->type === 'menu') {
+            return response()->json([
+                'type' => 'menu',
+                'items' => $menuResponse->getData()->items
+            ]);
+        } else {
+            return response()->json([
+                'type' => 'response',
+                'text' => $menuResponse->getData()->text
+            ]);
+        }
     }
 
+    // 2. Si no coincide con menú → flujo RAG normal
+    $contexto = $this->buscarContexto($mensaje, $tag);
+    $aiReply = $this->respuestaAI($mensaje, $contexto);
+
+    return response()->json([
+        'type' => 'response',
+        'text' => $aiReply
+    ]);
+}
+
+
     /**
-     * Busca coincidencias en la BD filtrando por tag si existe
+     * Detecta si el mensaje corresponde a un menú usando IA
      */
+    private function detectarMenu($mensaje)
+    {
+        try {
+            $client = new Client();
+
+            // Lista de menús actuales
+            $menus = MenuItem::all(['id','title'])->map(function($m){
+                return "{$m->id} - {$m->title}";
+            })->implode("\n");
+
+            $prompt = "
+                        Eres un asistente que interpreta el mensaje de un usuario y determina
+                        si corresponde a una opción del menú de la universidad.
+
+                        Devuelve SOLO JSON:
+                        { \"menu_id\": ID } si corresponde a un menú
+                        { \"menu_id\": null } si no corresponde
+
+                        Opciones disponibles:
+                        $menus
+
+                        Mensaje del usuario: \"$mensaje\"";
+
+            $messages = [
+                ['role' => 'system', 'content' => "Clasifica el mensaje hacia el menú correspondiente"],
+                ['role' => 'user', 'content' => $prompt],
+            ];
+
+            $response = $client->post(env('AI_BASE_URL') . '/chat/completions', [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . env('AI_API_KEY'),
+                    'Content-Type' => 'application/json',
+                ],
+                'json' => [
+                    'model' => env('AI_MODEL'),
+                    'messages' => $messages,
+                ],
+            ]);
+
+            $data = json_decode($response->getBody(), true);
+            $reply = $data['choices'][0]['message']['content'] ?? '{"menu_id": null}';
+
+            $json = json_decode($reply, true);
+            return $json['menu_id'] ?? null;
+
+        } catch (\Exception $e) {
+            return null; // Si falla la IA, seguimos con RAG
+        }
+    }
+
     private function buscarContexto($mensaje, $tag = null)
     {
         $mensajeNormalizado = $this->normalizar($mensaje);
@@ -38,7 +114,6 @@ class ChatbotController extends Controller
             ->limit(5)
             ->get();
 
-        // Si no hay resultados filtrando por tag, buscar en toda la tabla
         if ($resultados->isEmpty() && $tag) {
             $resultados = KnowledgeBase::whereRaw("MATCH(titulo, contenido) AGAINST(? IN NATURAL LANGUAGE MODE)", [$mensajeNormalizado])
                 ->limit(5)
@@ -52,9 +127,6 @@ class ChatbotController extends Controller
         return $resultados->pluck('contenido')->implode("\n\n---\n\n");
     }
 
-    /**
-     * Envía el mensaje + contexto a Groq/Llama
-     */
     private function respuestaAI($mensaje, $contexto = null)
     {
         try {
