@@ -67,6 +67,7 @@ class ChatbotController extends Controller
                         { \"menu_id\": ID } si corresponde a un menú
                         { \"menu_id\": null } si no corresponde
 
+
                         Opciones disponibles:
                         $menus
 

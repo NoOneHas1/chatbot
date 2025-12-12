@@ -54,6 +54,8 @@
 
     /* HEADER */
     #chat-header {
+        display: flex;
+        justify-content: space-between;
         background: linear-gradient(90deg, #f7c221, #ffdd5e);
         padding: 16px 20px;
         font-size: 1.25rem;
@@ -171,11 +173,109 @@
     }
     #chat-input button:hover { background-color: #e6b320; }
 
+
+    /*Boton de cerrar el chat*/
+    .close-chat-btn {
+        background: transparent;
+        border: none;
+        font-size: 20px;
+        cursor: pointer;
+        color: #0f3b53;
+        font-weight: bold;
+    }
+
+    .close-chat-btn:hover {
+        color: #c00;
+    }
+
+    /*Estilos overlay de modal para cerrar chat*/
+
+    .modal-overlay {
+        display: none; 
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.4);
+        backdrop-filter: blur(2px);
+        justify-content: center;
+        align-items: center;
+        z-index: 999;
+    }
+
+    .modal-box {
+        background: white;
+        padding: 20px;
+        width: 85%;
+        border-radius: 12px;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+
+    .modal-buttons {
+        margin-top: 15px;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .modal-confirm {
+        background: #c00;
+        color: white;
+        border: none;
+        padding: 10px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+
+    .modal-cancel {
+        background: #ddd;
+        color: #333;
+        border: none;
+        padding: 10px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+
+
+
     /* CHECKBOX TÉRMINOS */
     .terms-container label a {
         color: #0f3b53;
         font-weight: bold;
     }
+
+    .message.bot a {
+        word-break: break-word; /* evita que el link rompa el chat */
+    }
+
+    .typing {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin: 5px 0;
+    }
+
+    .typing span {
+        display: block;
+        width: 5px;
+        height: 5px;
+        background-color: #0f3b53;
+        border-radius: 50%;
+        animation: bounce 1.2s infinite ease-in-out;
+    }
+
+    .typing span:nth-child(1) { animation-delay: 0s; }
+    .typing span:nth-child(2) { animation-delay: 0.2s; }
+    .typing span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+        0%, 80%, 100% { transform: translateY(0); }
+        40% { transform: translateY(-8px); }
+    } 
+
+
 
     </style>
 </head>
@@ -247,23 +347,33 @@ function showWelcome() {
 }
 
 
+
+
 // Función para mostrar mensaje bot
 function showBotMessage(text) {
     const botMsg = document.createElement("div");
     botMsg.classList.add("message", "bot");
+    
+    // Convertir URLs a links clickeables
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    text = text.replace(urlRegex, '<a href="$1" target="_blank" style="color:#0f3b53;text-decoration:underline;">$1</a>');
+
     botMsg.innerHTML = text.replace(/\n/g, "<br>");
     chatMessages.appendChild(botMsg);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// Función para mostrar menú raíz
+
+
+
+// Función para cargar el menú raíz
 async function loadRootMenu() {
     try {
         const res = await fetch("/api/menu");
         const data = await res.json();
 
         if (data.type === "menu") {
-            showMenuButtons(data.items); // <-- solo el array
+            showMenuButtons(data.items, "", true); // indicamos que es menú raíz
         } else {
             showBotMessage(data.text); // si es respuesta final
         }
@@ -273,8 +383,11 @@ async function loadRootMenu() {
     }
 }
 
+
+
+
 // Función para mostrar botones de menú
-function showMenuButtons(items, messageText = "") {
+function showMenuButtons(items, messageText = "", isRoot = false) {
     // Contenedor único del mensaje del bot
     const wrapper = document.createElement("div");
     wrapper.classList.add("message", "bot");
@@ -291,18 +404,21 @@ function showMenuButtons(items, messageText = "") {
         const btn = document.createElement("button");
         btn.classList.add("menu-btn");
         btn.textContent = item.title;
-        btn.onclick = () => selectMenu(item.id);
+        // Pasamos también el texto al selectMenu
+        btn.onclick = () => selectMenu(item.id, item.title);
         wrapper.appendChild(btn);
     });
 
-    // Botón de volver al menú principal
-    const backBtn = document.createElement("button");
-    backBtn.classList.add("menu-btn");
-    backBtn.style.background = "#ddd";
-    backBtn.style.color = "#0f3b53";
-    backBtn.textContent = "⬅ Volver al menú principal";
-    backBtn.onclick = () => loadRootMenu();
-    wrapper.appendChild(backBtn);
+    // Solo mostrar botón de volver si NO es menú raíz
+    if (!isRoot) {
+        const backBtn = document.createElement("button");
+        backBtn.classList.add("menu-btn");
+        backBtn.style.background = "#ddd";
+        backBtn.style.color = "#0f3b53";
+        backBtn.textContent = "⬅ Volver al menú principal";
+        backBtn.onclick = () => loadRootMenu(); // carga menú raíz
+        wrapper.appendChild(backBtn);
+    }
 
     // Agregamos todo al chat
     chatMessages.appendChild(wrapper);
@@ -312,13 +428,28 @@ function showMenuButtons(items, messageText = "") {
 
 
 // Función para seleccionar menú/submenú
-async function selectMenu(menuId) {
+async function selectMenu(menuId, menuText = null) {
+    // Mostrar la opción seleccionada como mensaje de usuario
+    if(menuText) {
+        const userMsg = document.createElement("div");
+        userMsg.classList.add("message", "user");
+        userMsg.textContent = menuText;
+        chatMessages.appendChild(userMsg);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // Animación "bot está escribiendo"
+    const typing = showTyping();
+
     try {
         const res = await fetch(`/api/menu/${menuId}`);
         const data = await res.json();
 
+        // Quitar "escribiendo..." inmediatamente para que se vea la animación
+        typing.remove();
+
+        // Mostrar el resultado del menú
         if (data.type === "menu" && data.items.length > 0) {
-            // mensaje dinámico generado por IA aquí
             const messageText = data.message || "Por favor, selecciona una opción:";
             showMenuButtons(data.items, messageText); 
         }
@@ -330,15 +461,36 @@ async function selectMenu(menuId) {
         }
 
     } catch(err) {
+        typing.remove();
         console.error(err);
         showBotMessage("Error al cargar el menú.");
     }
 }
 
 
+//Funcion para mostrar que el bot está escribiendo
+function showTyping() {
+    // Contenedor del mensaje del bot
+    const wrapper = document.createElement("div");
+    wrapper.classList.add("message", "bot");
+
+    // Contenedor de los puntos animados
+    const typing = document.createElement("div");
+    typing.classList.add("typing");
+    typing.innerHTML = "<span></span><span></span><span></span>";
+
+    wrapper.appendChild(typing);
+    chatMessages.appendChild(wrapper);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    return wrapper; // para poder removerlo después
+}
 
 
-//Funcion para volver al menu anterior
+
+
+
+// Función para volver al menú raíz (usada en botones de volver)
 function showBackToRoot() {
     // Eliminamos cualquier botón de volver anterior
     const existingBack = chatMessages.querySelector(".back-btn-wrap");
@@ -384,6 +536,9 @@ async function sendMessage() {
 
     msgInput.value = "";
 
+    // Animación "bot está escribiendo"
+    const typing = showTyping();
+
     try {
         const response = await fetch("/api/chatbot", {
             method: "POST",
@@ -393,30 +548,35 @@ async function sendMessage() {
 
         const data = await response.json();
 
-        // Revisamos si es menú
-        if(data.type === 'menu' && data.items && data.items.length > 0) {
-            showMenuButtons(data.items);
-        } 
-        // Si es respuesta normal de IA
-        else if(data.type === 'response') {
-            let replyText = "";
-            if(data.text) {
-                // Si viene como objeto, extraemos el reply
-                if(typeof data.text === "object" && data.text.original && data.text.original.reply) {
-                    replyText = data.text.original.reply;
-                } else if(typeof data.text === "string") {
-                    replyText = data.text;
+
+        setTimeout(() => {
+            typing.remove();
+
+            // Revisamos si es menú
+            if(data.type === 'menu' && data.items && data.items.length > 0) {
+                showMenuButtons(data.items);
+            } 
+            // Si es respuesta normal de IA
+            else if(data.type === 'response') {
+                let replyText = "";
+                if(data.text) {
+                    if(typeof data.text === "object" && data.text.original && data.text.original.reply) {
+                        replyText = data.text.original.reply;
+                    } else if(typeof data.text === "string") {
+                        replyText = data.text;
+                    } else {
+                        replyText = "No hay información disponible.";
+                    }
                 } else {
                     replyText = "No hay información disponible.";
                 }
-            } else {
-                replyText = "No hay información disponible.";
+                showBotMessage(replyText);
+            } 
+            else {
+                showBotMessage("No hay información disponible.");
             }
-            showBotMessage(replyText);
-        } 
-        else {
-            showBotMessage("No hay información disponible.");
-        }
+
+        }, 800 + Math.random() * 700);
 
     } catch(err) {
         showBotMessage("Error al conectarse al chatbot: " + err);
