@@ -18,7 +18,8 @@ class MenuController extends Controller
 
         return response()->json([
             'type' => 'menu',
-            'items' => $items
+            'items' => $items,
+            'menu_title' => "Menú principal" // → necesario para IA
         ]);
     }
 
@@ -37,16 +38,15 @@ class MenuController extends Controller
             return response()->json([
                 'type' => 'menu',
                 'items' => $children,
-                'parent_id' => $item->parent_id // << para botón "volver"
+                'menu_title' => $item->title, // → enviado a IA
+                'parent_id' => $item->parent_id
             ]);
         }
 
         return response()->json([
             'type' => 'response',
             'text' => $item->response,
-            'parent_id' => $item->parent_id // << para volver desde respuesta final
+            'parent_id' => $item->parent_id
         ]);
     }
-
 }
-

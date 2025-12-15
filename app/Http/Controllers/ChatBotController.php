@@ -9,101 +9,96 @@ use GuzzleHttp\Client;
 
 class ChatbotController extends Controller
 {
+    /**
+     * Maneja el mensaje del usuario
+     */
     public function handle(Request $request)
-{
-    $mensaje = strtolower($request->input('message'));
-    $tag = $request->input('tag'); // opcional
+    {
+        $mensaje = strtolower($request->input('message'));
+        $tag     = $request->input('tag');
 
-    // 1. Intentar clasificar el mensaje hacia un menú
-    $menuId = $this->detectarMenu($mensaje);
+        // 1️⃣ Intentar clasificar hacia un menú
+        $menuId = $this->detectarMenu($mensaje);
 
-    if ($menuId) {
-        // Si detecta un menú, devolvemos el menú/submenú
-        $menuResponse = (new MenuController)->children($menuId);
-        
-        // Retornamos un JSON uniforme con la clave 'type' y 'items' para JS
-        if ($menuResponse->getData()->type === 'menu') {
-            return response()->json([
-                'type' => 'menu',
-                'items' => $menuResponse->getData()->items
-            ]);
-        } else {
+        if ($menuId) {
+            $menuResponse = (new MenuController)->children($menuId);
+            $payload = $menuResponse->getData();
+
+            if ($payload->type === "menu") {
+                return response()->json([
+                    'type'  => 'menu',
+                    'items' => $payload->items,
+                    'intro' => null, // ahora el front pone un texto predefinido
+                    'title' => $payload->menu_title
+                ]);
+            }
+
             return response()->json([
                 'type' => 'response',
-                'text' => $menuResponse->getData()->text
+                'text' => $payload->text
             ]);
         }
+
+        // 2️⃣ Buscar contexto en knowledge_base
+        $contexto = $this->buscarContexto($mensaje, $tag);
+        $aiReply  = $this->respuestaAI($mensaje, $contexto);
+
+        return response()->json([
+            'type' => 'response',
+            'text' => $aiReply
+        ]);
     }
 
-    // 2. Si no coincide con menú → flujo RAG normal
-    $contexto = $this->buscarContexto($mensaje, $tag);
-    $aiReply = $this->respuestaAI($mensaje, $contexto);
-
-    return response()->json([
-        'type' => 'response',
-        'text' => $aiReply
-    ]);
-}
-
-
     /**
-     * Detecta si el mensaje corresponde a un menú usando IA
+     * Detecta si un mensaje corresponde a un menú
      */
     private function detectarMenu($mensaje)
     {
         try {
             $client = new Client();
-
-            // Lista de menús actuales
-            $menus = MenuItem::all(['id','title'])->map(function($m){
-                return "{$m->id} - {$m->title}";
-            })->implode("\n");
+            $menus = MenuItem::all(['id','title'])->map(fn($m)=> "{$m->id} - {$m->title}")->implode("\n");
 
             $prompt = "
-                        Eres un asistente que interpreta el mensaje de un usuario y determina
-                        si corresponde a una opción del menú de la universidad.
+Devuelve SOLO JSON:
+{ \"menu_id\": ID } si corresponde a un menú
+{ \"menu_id\": null } si no corresponde
 
-                        Devuelve SOLO JSON:
-                        { \"menu_id\": ID } si corresponde a un menú
-                        { \"menu_id\": null } si no corresponde
+Opciones:
+$menus
 
-
-                        Opciones disponibles:
-                        $menus
-
-                        Mensaje del usuario: \"$mensaje\"";
-
-            $messages = [
-                ['role' => 'system', 'content' => "Clasifica el mensaje hacia el menú correspondiente"],
-                ['role' => 'user', 'content' => $prompt],
-            ];
+Mensaje: \"$mensaje\"";
 
             $response = $client->post(env('AI_BASE_URL') . '/chat/completions', [
                 'headers' => [
                     'Authorization' => 'Bearer ' . env('AI_API_KEY'),
-                    'Content-Type' => 'application/json',
+                    'Content-Type'  => 'application/json',
                 ],
                 'json' => [
-                    'model' => env('AI_MODEL'),
-                    'messages' => $messages,
+                    'model'    => env('AI_MODEL'),
+                    'messages' => [
+                        ['role' => 'system', 'content' => "Clasifica el mensaje hacia un menú"],
+                        ['role' => 'user', 'content' => $prompt]
+                    ]
                 ],
             ]);
 
-            $data = json_decode($response->getBody(), true);
-            $reply = $data['choices'][0]['message']['content'] ?? '{"menu_id": null}';
+            $data  = json_decode($response->getBody(), true);
+            $reply = $data['choices'][0]['message']['content'] ?? '{"menu_id":null}';
+            $json  = json_decode($reply, true);
 
-            $json = json_decode($reply, true);
             return $json['menu_id'] ?? null;
 
         } catch (\Exception $e) {
-            return null; // Si falla la IA, seguimos con RAG
+            return null;
         }
     }
 
+    /**
+     * Busca información relevante en knowledge_base
+     */
     private function buscarContexto($mensaje, $tag = null)
     {
         $mensajeNormalizado = $this->normalizar($mensaje);
-
         $query = KnowledgeBase::query();
 
         if ($tag) {
@@ -116,18 +111,20 @@ class ChatbotController extends Controller
             ->get();
 
         if ($resultados->isEmpty() && $tag) {
-            $resultados = KnowledgeBase::whereRaw("MATCH(titulo, contenido) AGAINST(? IN NATURAL LANGUAGE MODE)", [$mensajeNormalizado])
-                ->limit(5)
-                ->get();
+            $resultados = KnowledgeBase::whereRaw(
+                "MATCH(titulo, contenido) AGAINST(? IN NATURAL LANGUAGE MODE)",
+                [$mensajeNormalizado]
+            )->limit(5)->get();
         }
 
-        if ($resultados->isEmpty()) {
-            return null;
-        }
+        if ($resultados->isEmpty()) return null;
 
         return $resultados->pluck('contenido')->implode("\n\n---\n\n");
     }
 
+    /**
+     * Genera la respuesta de la IA
+     */
     private function respuestaAI($mensaje, $contexto = null)
     {
         try {
@@ -136,27 +133,16 @@ class ChatbotController extends Controller
 
             if (empty($messages)) {
                 $contextPrompt = $contexto
-                    ? "Información interna de la universidad:\n\n$contexto\n\n"
-                    : "No se encontró información interna relevante para esta consulta.\n\n";
+                    ? "Información interna:\n\n$contexto\n\n"
+                    : "No se encontró información interna.\n\n";
 
                 $messages[] = [
                     'role' => 'system',
                     'content' =>
-                        "Eres el asistente virtual de la Universidad Católica (Unicatólica).
-                        Responde únicamente con la información proporcionada en el CONTEXTO.
-                        Si no puedes responder, nunca inventes información.
-                        Si no hay información suficiente en el contexto, responde exactamente:
-                        'No tengo información suficiente para responder. Por favor contacta a un asesor en asesor@unicatolica.edu.co'
-
-                        Si te saludan, responde:
-                        'Hola! soy tu asistente virtual de la Unicatolica, ¿en qué puedo ayudarte el día de hoy?'
-
-                        Si te preguntan cosas que no son de la universidad di:
-                        'No estoy programado para responder preguntas fuera del ámbito universitario.'
-
-                        CONTEXTO:
-                        $contextPrompt
-                        FIN DEL CONTEXTO."
+                        "Eres el asistente virtual de la Universidad Católica. 
+                        Usa SOLO el contexto proporcionado.
+                        Si no hay información responde:
+                        'No tengo información suficiente para responder. Por favor contacta a un asesor en asesor@unicatolica.edu.co'"
                 ];
             }
 
@@ -168,15 +154,15 @@ class ChatbotController extends Controller
             $response = $client->post(env('AI_BASE_URL') . '/chat/completions', [
                 'headers' => [
                     'Authorization' => 'Bearer ' . env('AI_API_KEY'),
-                    'Content-Type' => 'application/json',
+                    'Content-Type'  => 'application/json',
                 ],
                 'json' => [
-                    'model' => env('AI_MODEL'),
+                    'model'    => env('AI_MODEL'),
                     'messages' => $messages
-                ],
+                ]
             ]);
 
-            $data = json_decode($response->getBody(), true);
+            $data  = json_decode($response->getBody(), true);
             $reply = $data['choices'][0]['message']['content'] ?? "No pude generar respuesta.";
 
             $messages[] = [
@@ -186,27 +172,34 @@ class ChatbotController extends Controller
 
             session(['chat_history' => $messages]);
 
-            return response()->json([
-                'reply' => $reply
-            ]);
+            return $reply;
 
         } catch (\Exception $e) {
-            return response()->json([
-                'reply' => "Hubo un error con la IA: " . $e->getMessage(),
-            ]);
+            return "Hubo un error con la IA: " . $e->getMessage();
         }
     }
 
+    /**
+     * Normaliza texto para búsquedas
+     */
     private function normalizar($texto)
     {
         $texto = mb_strtolower($texto, 'UTF-8');
         $texto = str_replace(
-            ['á', 'é', 'í', 'ó', 'ú', 'ü', 'ñ'],
-            ['a', 'e', 'i', 'o', 'u', 'u', 'n'],
+            ['á','é','í','ó','ú','ü','ñ'],
+            ['a','e','i','o','u','u','n'],
             $texto
         );
         $texto = preg_replace('/[^a-z0-9\s]/', ' ', $texto);
-        $texto = preg_replace('/\s+/', ' ', $texto);
-        return trim($texto);
+        return trim(preg_replace('/\s+/', ' ', $texto));
+    }
+
+    /** 
+     * Limpia el historial de chat
+     */
+    public function clearSession(Request $request)
+    {
+        $request->session()->forget('chat_history');
+        return response()->json(['status' => 'ok']);
     }
 }

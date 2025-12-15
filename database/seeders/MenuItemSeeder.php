@@ -26,15 +26,23 @@ class MenuItemSeeder extends Seeder
             'order_index' => 2,
         ]);
 
+        $correo = MenuItem::create([
+            'parent_id' => null,
+            'title' => 'Correo electrónico',
+            'description' => 'Información, preguntas frecuentes o dudas relacionadas con el correo electrónico institucional',
+            'response' => null,
+            'order_index' => 3,
+        ]);
+
         $contacto = MenuItem::create([
             'parent_id' => null,
             'title' => 'Contacto',
             'description' => 'Información de contacto',
             'response' => 'Puedes contactarnos al correo: contacto@unicatolica.edu.co o al teléfono: +57 123 456 789',
-            'order_index' => 3,
+            'order_index' => 4,
         ]);
 
-        // Submenús de Admisiones
+        // Submenús de inscripciones
         MenuItem::create([
             'parent_id' => $admisiones->id,
             'title' => 'Pregrado',
@@ -59,6 +67,14 @@ class MenuItemSeeder extends Seeder
             'order_index' => 3,
         ]);
 
+        // Submenús de correo electronico
+        MenuItem::create([
+            'parent_id' => $correo->id,
+            'title' => 'Recuperar Contraseña',
+            'description' => 'Instrucciones para recuperar la contraseña del correo institucional',
+            'response' => 'Para recuperar tu contraseña, visita: https://correo.unicatolica.edu.co/recuperar-contraseña y sigue las instrucciones proporcionadas.',
+            'order_index' => 1,
+        ]);
     }
 }
 

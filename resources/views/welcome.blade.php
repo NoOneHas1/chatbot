@@ -188,55 +188,74 @@
         color: #c00;
     }
 
+
     /*Estilos overlay de modal para cerrar chat*/
 
-    .modal-overlay {
-        display: none; 
+    /* Modal dentro del chat */
+    .chat-modal-overlay {
+        display: none;
         position: absolute;
-        top: 0;
+        top: 0; 
         left: 0;
-        width: 100%;
+        width: 100%; 
         height: 100%;
-        background: rgba(0,0,0,0.4);
-        backdrop-filter: blur(2px);
+        background: rgba(0,0,0,0.25);
         justify-content: center;
         align-items: center;
-        z-index: 999;
+        z-index: 1001;
     }
 
-    .modal-box {
-        background: white;
-        padding: 20px;
-        width: 85%;
+    .chat-modal-box {
+        background: #ffffff;
+        padding: 15px 20px;
         border-radius: 12px;
         text-align: center;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        width: 85%;
+        max-width: 280px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        font-family: 'Segoe UI', Tahoma, sans-serif; 
+        font-size: 14px;
+        color: #0f3b53;
+    }
+
+    .chat-modal-box h1 {
+        font-size: 15px;
+        margin-bottom: 10px;
+    }
+
+    .chat-modal-box p {
+        color: #787a7c
     }
 
     .modal-buttons {
-        margin-top: 15px;
         display: flex;
         justify-content: center;
-        gap: 10px;
+        gap: 8px;
     }
 
     .modal-confirm {
         background: #c00;
         color: white;
         border: none;
-        padding: 10px 16px;
+        padding: 8px 14px;
         border-radius: 8px;
         cursor: pointer;
+        font-size: 13px;
     }
 
     .modal-cancel {
         background: #ddd;
         color: #333;
         border: none;
-        padding: 10px 16px;
+        padding: 8px 14px;
         border-radius: 8px;
         cursor: pointer;
+        font-size: 13px;
     }
+
+    .modal-confirm:hover { background: #a00; }
+    .modal-cancel:hover { background: #bbb; }
+
 
 
 
@@ -289,8 +308,20 @@ const chatWidget = document.getElementById("chat-widget");
 const chatMessages = document.getElementById("chat-messages");
 const msgInput = document.getElementById("msgInput");
 
-// Variables de estado
 let acceptedTerms = false;
+
+// —————————————————————————————————————————————
+// TEXTOS INTRODUCTORIOS PARA MENÚS 
+// —————————————————————————————————————————————
+const menuIntros = [
+    "Elige una categoría de tu interés:",
+    "Aquí tienes las opciones disponibles:",
+    "Selecciona una de las siguientes opciones:"
+];
+
+function getRandomMenuIntro() {
+    return menuIntros[Math.floor(Math.random() * menuIntros.length)];
+}
 
 // Mostrar / Ocultar widget
 chatBtn.addEventListener("click", () => {
@@ -304,7 +335,9 @@ chatBtn.addEventListener("click", () => {
     }
 });
 
-// Función de bienvenida y términos
+// —————————————————————————————————————————————
+// MENSAJE DE BIENVENIDA
+// —————————————————————————————————————————————
 function showWelcome() {
     const termsMsg = document.createElement("div");
     termsMsg.classList.add("message", "bot");
@@ -324,20 +357,12 @@ function showWelcome() {
     const checkbox = termsMsg.querySelector("#acceptTerms");
     const acceptBtn = termsMsg.querySelector("#accept-terms-btn");
 
-    // Activar/desactivar botón según checkbox
     checkbox.addEventListener("change", () => {
-        if (checkbox.checked) {
-            acceptBtn.disabled = false;
-            acceptBtn.style.opacity = "1";
-            acceptBtn.style.cursor = "pointer";
-        } else {
-            acceptBtn.disabled = true;
-            acceptBtn.style.opacity = "0.6";
-            acceptBtn.style.cursor = "not-allowed";
-        }
+        acceptBtn.disabled = !checkbox.checked;
+        acceptBtn.style.opacity = checkbox.checked ? "1" : "0.6";
+        acceptBtn.style.cursor  = checkbox.checked ? "pointer" : "not-allowed";
     });
 
-    // Click del botón
     acceptBtn.addEventListener("click", () => {
         acceptedTerms = true;
         termsMsg.remove();
@@ -346,15 +371,13 @@ function showWelcome() {
     });
 }
 
-
-
-
-// Función para mostrar mensaje bot
+// —————————————————————————————————————————————
+// MOSTRAR MENSAJE BOT
+// —————————————————————————————————————————————
 function showBotMessage(text) {
     const botMsg = document.createElement("div");
     botMsg.classList.add("message", "bot");
-    
-    // Convertir URLs a links clickeables
+
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     text = text.replace(urlRegex, '<a href="$1" target="_blank" style="color:#0f3b53;text-decoration:underline;">$1</a>');
 
@@ -363,118 +386,102 @@ function showBotMessage(text) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-
-
-
-// Función para cargar el menú raíz
+// —————————————————————————————————————————————
+// CARGAR MENÚ RAÍZ
+// —————————————————————————————————————————————
 async function loadRootMenu() {
     try {
         const res = await fetch("/api/menu");
         const data = await res.json();
 
         if (data.type === "menu") {
-            showMenuButtons(data.items, "", true); // indicamos que es menú raíz
+            showMenuButtons(data.items, null, true);
         } else {
-            showBotMessage(data.text); // si es respuesta final
+            showBotMessage(data.text);
         }
-    } catch(err) {
-        console.error(err);
+    } catch (err) {
         showBotMessage("No se pudo cargar el menú.");
     }
 }
 
-
-
-
-// Función para mostrar botones de menú
-function showMenuButtons(items, messageText = "", isRoot = false) {
-    // Contenedor único del mensaje del bot
+// —————————————————————————————————————————————
+// MOSTRAR MENÚ + INTRO AUTOMÁTICA
+// —————————————————————————————————————————————
+function showMenuButtons(items, messageText = null, isRoot = false) {
     const wrapper = document.createElement("div");
     wrapper.classList.add("message", "bot");
 
-    // Si hay texto dinámico, se muestra arriba de los botones
-    if (messageText) {
-        const textDiv = document.createElement("div");
-        textDiv.textContent = messageText;
-        wrapper.appendChild(textDiv);
-    }
+    const introText = messageText ?? getRandomMenuIntro();
 
-    // Botones de submenú
+    const introDiv = document.createElement("div");
+    introDiv.style.marginBottom = "8px";
+    introDiv.textContent = introText;
+    wrapper.appendChild(introDiv);
+
     items.forEach(item => {
         const btn = document.createElement("button");
         btn.classList.add("menu-btn");
         btn.textContent = item.title;
-        // Pasamos también el texto al selectMenu
         btn.onclick = () => selectMenu(item.id, item.title);
         wrapper.appendChild(btn);
     });
 
-    // Solo mostrar botón de volver si NO es menú raíz
     if (!isRoot) {
         const backBtn = document.createElement("button");
         backBtn.classList.add("menu-btn");
         backBtn.style.background = "#ddd";
         backBtn.style.color = "#0f3b53";
         backBtn.textContent = "⬅ Volver al menú principal";
-        backBtn.onclick = () => loadRootMenu(); // carga menú raíz
+        backBtn.onclick = () => loadRootMenu();
         wrapper.appendChild(backBtn);
     }
 
-    // Agregamos todo al chat
     chatMessages.appendChild(wrapper);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-
-
-// Función para seleccionar menú/submenú
+// —————————————————————————————————————————————
+// SELECCIONAR MENÚ / SUBMENÚ
+// —————————————————————————————————————————————
 async function selectMenu(menuId, menuText = null) {
-    // Mostrar la opción seleccionada como mensaje de usuario
-    if(menuText) {
+    if (menuText) {
         const userMsg = document.createElement("div");
         userMsg.classList.add("message", "user");
         userMsg.textContent = menuText;
         chatMessages.appendChild(userMsg);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    // Animación "bot está escribiendo"
     const typing = showTyping();
 
     try {
         const res = await fetch(`/api/menu/${menuId}`);
         const data = await res.json();
 
-        // Quitar "escribiendo..." inmediatamente para que se vea la animación
         typing.remove();
 
-        // Mostrar el resultado del menú
-        if (data.type === "menu" && data.items.length > 0) {
-            const messageText = data.message || "Por favor, selecciona una opción:";
-            showMenuButtons(data.items, messageText); 
-        }
+        if (data.type === "menu") {
+            showMenuButtons(data.items);
+        } 
         else if (data.type === "response") {
             showBotMessage(data.text);
-        }
+        } 
         else {
             showBotMessage("No hay información disponible.");
         }
 
-    } catch(err) {
+    } catch (err) {
         typing.remove();
-        console.error(err);
         showBotMessage("Error al cargar el menú.");
     }
 }
 
-
-//Funcion para mostrar que el bot está escribiendo
+// —————————————————————————————————————————————
+// ANIMACIÓN "tres puntos"
+// —————————————————————————————————————————————
 function showTyping() {
-    // Contenedor del mensaje del bot
     const wrapper = document.createElement("div");
     wrapper.classList.add("message", "bot");
 
-    // Contenedor de los puntos animados
     const typing = document.createElement("div");
     typing.classList.add("typing");
     typing.innerHTML = "<span></span><span></span><span></span>";
@@ -483,43 +490,14 @@ function showTyping() {
     chatMessages.appendChild(wrapper);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
-    return wrapper; // para poder removerlo después
+    return wrapper;
 }
 
-
-
-
-
-// Función para volver al menú raíz (usada en botones de volver)
-function showBackToRoot() {
-    // Eliminamos cualquier botón de volver anterior
-    const existingBack = chatMessages.querySelector(".back-btn-wrap");
-    if (existingBack) existingBack.remove();
-
-    const wrap = document.createElement("div");
-    wrap.classList.add("message", "bot", "back-btn-wrap"); // agregamos clase para identificarlo
-
-    const btn = document.createElement("button");
-    btn.classList.add("menu-btn");
-    btn.style.background = "#ddd";
-    btn.style.color = "#0f3b53";
-    btn.textContent = "⬅ Volver al menú principal";
-
-    btn.onclick = () => {
-        loadRootMenu(); // carga menú raíz
-    };
-
-    wrap.appendChild(btn);
-    chatMessages.appendChild(wrap);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-
-
-
-//Funcion para enviar mensaje
+// —————————————————————————————————————————————
+// ENVÍO DE MENSAJE
+// —————————————————————————————————————————————
 async function sendMessage() {
-    if(!acceptedTerms) {
+    if (!acceptedTerms) {
         alert("Debes aceptar los términos y condiciones antes de escribir.");
         return;
     }
@@ -527,70 +505,89 @@ async function sendMessage() {
     const message = msgInput.value.trim();
     if (!message) return;
 
-    // Mostrar mensaje usuario
     const userMsg = document.createElement("div");
     userMsg.classList.add("message", "user");
     userMsg.textContent = message;
     chatMessages.appendChild(userMsg);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-
     msgInput.value = "";
 
-    // Animación "bot está escribiendo"
     const typing = showTyping();
 
     try {
         const response = await fetch("/api/chatbot", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({message})
+            body: JSON.stringify({ message })
         });
 
         const data = await response.json();
 
-
         setTimeout(() => {
             typing.remove();
 
-            // Revisamos si es menú
-            if(data.type === 'menu' && data.items && data.items.length > 0) {
-                showMenuButtons(data.items);
-            } 
-            // Si es respuesta normal de IA
-            else if(data.type === 'response') {
-                let replyText = "";
-                if(data.text) {
-                    if(typeof data.text === "object" && data.text.original && data.text.original.reply) {
-                        replyText = data.text.original.reply;
-                    } else if(typeof data.text === "string") {
-                        replyText = data.text;
-                    } else {
-                        replyText = "No hay información disponible.";
-                    }
-                } else {
-                    replyText = "No hay información disponible.";
-                }
-                showBotMessage(replyText);
-            } 
-            else {
+            if (data.type === 'menu') {
+                showMenuButtons(data.items, data.intro);
+            } else if (data.type === 'response') {
+                showBotMessage(data.text);
+            } else {
                 showBotMessage("No hay información disponible.");
             }
 
         }, 800 + Math.random() * 700);
 
-    } catch(err) {
-        showBotMessage("Error al conectarse al chatbot: " + err);
+    } catch (err) {
+        showBotMessage("Error al conectarse al chatbot.");
     }
 }
 
-// Enviar con Enter
-msgInput.addEventListener("keypress", function(e){
-    if(e.key === 'Enter') sendMessage();
+msgInput.addEventListener("keypress", e => {
+    if (e.key === 'Enter') sendMessage();
 });
 
 
+// —————————————————————————————————————————————
+// CERRAR CHAT CON MODAL DE CONFIRMACIÓN
+// —————————————————————————————————————————————
+
+// Botón de cerrar chat
+const closeBtn = document.querySelector(".close-chat-btn");
+const closeModal = document.getElementById("closeModal");
+const confirmClose = document.getElementById("confirmClose");
+const cancelClose = document.getElementById("cancelClose");
+
+// Mostrar modal al hacer clic en la X
+closeBtn.addEventListener("click", () => {
+    closeModal.style.display = "flex";
+});
+
+// Cancelar cierre
+cancelClose.addEventListener("click", () => {
+    closeModal.style.display = "none";
+});
+
+// Confirmar cierre
+confirmClose.addEventListener("click", async () => {
+    closeModal.style.display = "none";
+    chatWidget.style.display = "none";
+
+    // Limpiar chat
+    chatMessages.innerHTML = "";
+
+    // Limpiar sesión del chat en backend
+    try {
+        await fetch("/api/chatbot/clear-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+        });
+    } catch (err) {
+        console.error("Error al limpiar la sesión:", err);
+    }
+});
+
 
 </script>
+
+
 
 </body>
 </html>

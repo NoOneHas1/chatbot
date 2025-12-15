@@ -10,3 +10,6 @@ Route::post('/chatbot', [ChatBotController::class, 'handle']);
 //endpoints para el menú
 Route::get('/menu', [MenuController::class, 'root']);
 Route::get('/menu/{id}', [MenuController::class, 'children']);
+
+//endpoint para limpiar el historial de chat
+Route::post('/chatbot/clear-session', [ChatBotController::class, 'clearSession']);
