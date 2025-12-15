@@ -1,11 +1,17 @@
  <!-- BOTÓN FLOTANTE -->
-    <button id="chat-btn"><img src="{{ asset('images/chatbot.svg') }}" alt="Robot" style="width: 35px; margin-top: 5px;"></button>
+    <button id="chat-btn" class="chat-bubble"><img src="{{ asset('images/chatbot.svg') }}" alt="Robot"></button>
 
     <!-- WIDGET -->
     <div id="chat-widget">
         <div id="chat-header">
-            <span>Asistente Unicatolica</span>
-            <button id="closeChatBtn" class="close-chat-btn">X</button>
+            <div class="chat-header-left">
+                <img id="chat-header-icon" src="{{ asset('images/chatbot.svg') }}" alt="Robot">
+                <span>Asistente Unicatolica</span>
+            </div>
+
+            <button id="closeChatBtn" class="close-chat-btn"><img class="image-btn" src="{{ asset('images/cancel.svg') }}" alt="";></button>
+            
+
         </div>
         <div id="chat-messages"></div>
         <div id="chat-input">

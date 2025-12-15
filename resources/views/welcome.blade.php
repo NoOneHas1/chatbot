@@ -25,12 +25,51 @@
         z-index: 1000;
         transition: 0.25s ease;
     }
-    #chat-btn:hover { transform: scale(1.07); background: #e6b320; }
+
+    #chat-btn:hover { 
+        transform: scale(1.07); 
+        background: #e6b320; 
+    }
+
+    .chat-bubble img {
+        width: 35px;
+        margin-top: 5px;
+        transition: transform 0.4s ease, opacity 0.3s ease;
+    }
+
+    #chat-header-icon {
+    width: 26px;
+    margin-right: 8px;
+    opacity: 0;
+    transform: translateX(-10px) scale(0.8);
+    transition: all 0.35s ease;
+    }
+
+    /* cuando el chat está activo */
+    #chat-widget.open #chat-header-icon {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+
+    .chat-header-left {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    #chat-btn.hide {
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.8);
+    transition: all 0.3s ease;
+}
+
+
 
     /* WIDGET */
     #chat-widget {
         position: fixed;
-        bottom: 95px;
+        bottom: 50px;
         right: 22px;
         width: 370px;
         max-height: 540px;
@@ -42,15 +81,23 @@
         z-index: 999;
         font-family: 'Segoe UI', Tahoma, sans-serif;
         color: #0f3b53;
-        animation: popIn 0.25s ease;
         box-shadow: 0 10px 25px rgba(15, 59, 83, 0.25);
+        transform-origin: bottom right;
+        animation: popFromBubble 0.28s ease-out;
     }
 
     /* Animación suave */
-    @keyframes popIn {
-        from { transform: scale(.9); opacity: 0; }
-        to { transform: scale(1); opacity: 1; }
+    @keyframes popFromBubble {
+        from {
+            transform: scale(0.85);
+            opacity: 0;
+        }
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
     }
+
 
     /* HEADER */
     #chat-header {
@@ -174,7 +221,7 @@
     #chat-input button:hover { background-color: #e6b320; }
 
 
-    /*Boton de cerrar el chat*/
+    /*Boton de cerrar y minimizar el chat*/
     .close-chat-btn {
         background: transparent;
         border: none;
@@ -182,10 +229,17 @@
         cursor: pointer;
         color: #0f3b53;
         font-weight: bold;
+        transition: 0.2s ease;
     }
 
     .close-chat-btn:hover {
         color: #c00;
+        transform: scale(1.2);
+    }
+
+    .image-btn {
+        width: 15px;
+        margin-top: 5px;
     }
 
 
@@ -583,6 +637,34 @@ confirmClose.addEventListener("click", async () => {
         console.error("Error al limpiar la sesión:", err);
     }
 });
+
+// —————————————————————————————————————————————
+// ANIMACIÓN ÍCONO HEADER
+// —————————————————————————————————————————————
+
+chatBtn.addEventListener("click", () => {
+    chatWidget.style.display = "flex";
+    chatWidget.classList.add("open");
+
+    chatBtn.classList.add("hide");
+
+    if (!chatMessages.querySelector(".message.bot")) {
+        showWelcome();
+    }
+});
+
+confirmClose.addEventListener("click", async () => {
+    closeModal.style.display = "none";
+    chatWidget.style.display = "none";
+    chatWidget.classList.remove("open");
+
+    chatBtn.classList.remove("hide");
+
+    chatMessages.innerHTML = "";
+
+    await fetch("/api/chatbot/clear-session", { method: "POST" });
+});
+
 
 
 </script>
