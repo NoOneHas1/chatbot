@@ -17,7 +17,7 @@ class ChatbotController extends Controller
         $mensaje = strtolower($request->input('message'));
         $tag     = $request->input('tag');
 
-        // 1️⃣ Intentar clasificar hacia un menú
+        // Intentar clasificar hacia un menú
         $menuId = $this->detectarMenu($mensaje);
 
         if ($menuId) {
@@ -39,7 +39,7 @@ class ChatbotController extends Controller
             ]);
         }
 
-        // 2️⃣ Buscar contexto en knowledge_base
+        // Buscar contexto en knowledge_base
         $contexto = $this->buscarContexto($mensaje, $tag);
         $aiReply  = $this->respuestaAI($mensaje, $contexto);
 
@@ -59,14 +59,14 @@ class ChatbotController extends Controller
             $menus = MenuItem::all(['id','title'])->map(fn($m)=> "{$m->id} - {$m->title}")->implode("\n");
 
             $prompt = "
-Devuelve SOLO JSON:
-{ \"menu_id\": ID } si corresponde a un menú
-{ \"menu_id\": null } si no corresponde
+                Devuelve SOLO JSON:
+                { \"menu_id\": ID } si corresponde a un menú
+                { \"menu_id\": null } si no corresponde
 
-Opciones:
-$menus
+                Opciones:
+                $menus
 
-Mensaje: \"$mensaje\"";
+                Mensaje: \"$mensaje\"";
 
             $response = $client->post(env('AI_BASE_URL') . '/chat/completions', [
                 'headers' => [
