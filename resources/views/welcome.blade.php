@@ -221,7 +221,7 @@
     #chat-input button:hover { background-color: #e6b320; }
 
 
-    /*Boton de cerrar y minimizar el chat*/
+    /*Cerrar chat*/
     .close-chat-btn {
         background: transparent;
         border: none;
@@ -233,7 +233,6 @@
     }
 
     .close-chat-btn:hover {
-        color: #c00;
         transform: scale(1.2);
     }
 
@@ -241,6 +240,30 @@
         width: 15px;
         margin-top: 5px;
     }
+
+
+
+    /*Minimizar chat*/
+    .minimize-chat-btn {
+        background: transparent;
+        border: none;
+        font-size: 22px;
+        cursor: pointer;
+        color: #0f3b53;
+        font-weight: bold;
+        transition: 0.2s ease;
+    }
+
+    .minimize-chat-btn:hover {
+        transform: scale(1.2);
+    }
+
+    /* Por defecto: solo minimizar visible */
+    .close-chat-btn {
+        display: none;
+    }
+
+
 
 
     /*Estilos overlay de modal para cerrar chat*/
@@ -418,10 +441,19 @@ function showWelcome() {
     });
 
     acceptBtn.addEventListener("click", () => {
-        acceptedTerms = true;
-        termsMsg.remove();
-        showBotMessage("¡Hola! Soy tu asistente virtual de la Universidad Católica. ¿En qué puedo ayudarte hoy?");
-        loadRootMenu();
+    acceptedTerms = true;
+    termsMsg.remove();
+
+    // Cambiar botones
+    document.getElementById("minimizeChatBtn").style.display = "none";
+    document.getElementById("closeChatBtn").style.display = "inline";
+
+    showBotMessage(
+        "¡Hola! Soy tu asistente virtual de la Universidad Católica. ¿En qué puedo ayudarte hoy?"
+    );
+
+    loadRootMenu();
+
     });
 }
 
@@ -600,8 +632,33 @@ msgInput.addEventListener("keypress", e => {
 
 
 // —————————————————————————————————————————————
-// CERRAR CHAT CON MODAL DE CONFIRMACIÓN
+// CERRAR CHAT CON MODAL DE CONFIRMACIÓN + MINIMIZAR
 // —————————————————————————————————————————————
+
+
+//FUNCION MINIMIZAR CHAT
+const minimizeBtn = document.getElementById("minimizeChatBtn");
+
+minimizeBtn.addEventListener("click", () => {
+    chatWidget.style.display = "none";
+    chatWidget.classList.remove("open");
+    chatBtn.classList.remove("hide");
+});
+
+//Funcion resetear chat
+function resetChatUI() {
+    acceptedTerms = false;
+
+    // Botones
+    document.getElementById("closeChatBtn").style.display = "none";
+    document.getElementById("minimizeChatBtn").style.display = "inline";
+
+    // Limpiar mensajes
+    chatMessages.innerHTML = "";
+}
+
+
+
 
 // Botón de cerrar chat
 const closeBtn = document.querySelector(".close-chat-btn");
@@ -623,11 +680,11 @@ cancelClose.addEventListener("click", () => {
 confirmClose.addEventListener("click", async () => {
     closeModal.style.display = "none";
     chatWidget.style.display = "none";
+    chatWidget.classList.remove("open");
+    chatBtn.classList.remove("hide");
 
-    // Limpiar chat
-    chatMessages.innerHTML = "";
+    resetChatUI();
 
-    // Limpiar sesión del chat en backend
     try {
         await fetch("/api/chatbot/clear-session", {
             method: "POST",

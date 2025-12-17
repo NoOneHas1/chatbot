@@ -139,11 +139,21 @@ class ChatbotController extends Controller
                 $messages[] = [
                     'role' => 'system',
                     'content' =>
-                        "Eres el asistente virtual de la Universidad Católica. 
-                        Usa SOLO el contexto proporcionado.
-                        Si no hay información responde:
-                        'No tengo información suficiente para responder. Por favor contacta a un asesor en asesor@unicatolica.edu.co'"
-                ];
+                         "Eres un asistente institucional.
+            
+                            REGLAS ESTRICTAS:
+                            - Usa EXCLUSIVAMENTE la información del CONTEXTO.
+                            - NO inventes datos.
+                            - NO hagas suposiciones.
+                            - NO agregues información externa.
+                            - Si el contexto NO contiene la respuesta, responde EXACTAMENTE:
+                            'No tengo información suficiente para responder esa pregunta. ¿Podrías darme un poco más de contexto o reformularla?'"
+                    ];
+
+                    $messages[] = [
+                        'role' => 'system',
+                        'content' => "CONTEXTO DISPONIBLE:\n\n" . $contexto
+                    ];
             }
 
             $messages[] = [

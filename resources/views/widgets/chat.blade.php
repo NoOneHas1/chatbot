@@ -9,7 +9,8 @@
                 <span>Asistente Unicatolica</span>
             </div>
 
-            <button id="closeChatBtn" class="close-chat-btn"><img class="image-btn" src="{{ asset('images/cancel.svg') }}" alt="";></button>
+            <button id="minimizeChatBtn" class="minimize-chat-btn"><img class="image-btn" src="{{ asset('images/minimize.svg') }}" alt="Minimizar"></button>
+            <button id="closeChatBtn" class="close-chat-btn"><img class="image-btn" src="{{ asset('images/cancel.svg') }}" alt="Cerrar"></button>
             
 
         </div>
