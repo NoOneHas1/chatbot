@@ -387,6 +387,11 @@ const msgInput = document.getElementById("msgInput");
 
 let acceptedTerms = false;
 
+let supportRequestId = null;
+let lastAgentMessageId = null;
+let supportPollingInterval = null;
+
+
 
 let supportSessionId = localStorage.getItem('support_session_id');
 
@@ -547,14 +552,15 @@ function showMenuButtons(items, messageText = null, isRoot = false) {
             try {
                 const res = await fetch('/api/support/start', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json' },    
                     body: JSON.stringify({
                         session_id: supportSessionId
                     })
                 });
 
-
                 const data = await res.json();
+
+                supportRequestId = data.support_request_id;
 
                 if (data.advisor_assigned) {
                     showBotMessage("Un asesor se ha conectado contigo.");
@@ -562,12 +568,12 @@ function showMenuButtons(items, messageText = null, isRoot = false) {
                     showBotMessage("Todos los asesores están ocupados, espera un momento.");
                 }
 
+                startSupportPolling();
+
             } catch (e) {
-                typing.remove();
                 console.error(e);
                 showBotMessage('Error técnico al iniciar el soporte.');
             }
-
 
             return;
         }
@@ -641,7 +647,11 @@ async function sendMessage() {
         const response = await fetch("/api/chatbot", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ message })
+            body: JSON.stringify({
+                message,
+                session_id: supportSessionId
+            })
+
         });
 
         const data = await response.json();
@@ -723,6 +733,9 @@ confirmClose.addEventListener("click", async () => {
 
     resetChatUI();
 
+    stopSupportPolling();
+
+
     try {
         await fetch("/api/chatbot/clear-session", {
             method: "POST",
@@ -759,6 +772,53 @@ confirmClose.addEventListener("click", async () => {
 
     await fetch("/api/chatbot/clear-session", { method: "POST" });
 });
+
+// —————————————————————————————————————————
+// FUNCION PARA ESCUCHAR MENSAJES DEL ASESOR
+// —————————————————————————————————————————
+function startSupportPolling() {
+    if (supportPollingInterval) return;
+
+    supportPollingInterval = setInterval(async () => {
+        if (!supportRequestId) return;
+
+        try {
+            const res = await fetch(`/api/support/messages?support_request_id=${supportRequestId}&last_message_id=${lastAgentMessageId ?? ''}`);
+            const data = await res.json();
+
+            if (data.status === 'closed') {
+                showBotMessage("El chat fue cerrado por el asesor.");
+                stopSupportPolling();
+                return;
+            }
+
+            if (data.messages && data.messages.length) {
+                data.messages.forEach(msg => {
+                    showBotMessage(msg.message);
+                    lastAgentMessageId = msg.id;
+                });
+            }
+
+        } catch (e) {
+            console.error("Error polling soporte:", e);
+        }
+    }, 3000);
+}
+
+// —————————————————————————————————————————
+// DETENER POLLING AL CERRAR CHAT
+// —————————————————————————————————————————
+function stopSupportPolling() {
+    if (supportPollingInterval) {
+        clearInterval(supportPollingInterval);
+        supportPollingInterval = null;
+    }
+
+    supportRequestId = null;
+    lastAgentMessageId = null;
+}
+
+
 
 
 

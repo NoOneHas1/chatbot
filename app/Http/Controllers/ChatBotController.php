@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\KnowledgeBase;
 use App\Models\MenuItem;
+use App\Models\SupportRequest;
+use App\Models\SupportMessage;
 use Illuminate\Http\Request;
 use GuzzleHttp\Client;
 
@@ -14,8 +16,41 @@ class ChatbotController extends Controller
      */
     public function handle(Request $request)
     {
-        $mensaje = strtolower($request->input('message'));
-        $tag     = $request->input('tag');
+        $mensaje   = strtolower($request->input('message'));
+        $tag       = $request->input('tag');
+        $sessionId = $request->input('session_id'); 
+
+        /**
+         * ======================================
+         * BLOQUEO DE IA SI HAY SOPORTE ACTIVO
+         * ======================================
+         */
+        $supportRequest = SupportRequest::where('session_id', $sessionId)
+            ->whereIn('status', ['waiting', 'active'])
+            ->first();
+
+        if ($supportRequest) {
+            SupportMessage::create([
+                'support_request_id' => $supportRequest->id,
+                'sender_type'        => 'user',
+                'message'            => $mensaje,
+            ]);
+
+            $supportRequest->update([
+                'last_user_message_at' => now(),
+            ]);
+
+            return response()->json([
+                'type' => 'response',
+                'text' => 'Un asesor revisará tu mensaje en breve.',
+            ]);
+        }
+
+        /**
+         * ======================================
+         * FLUJO NORMAL (MENÚ / IA)
+         * ======================================
+         */
 
         // Intentar clasificar hacia un menú
         $menuId = $this->detectarMenu($mensaje);
@@ -28,7 +63,7 @@ class ChatbotController extends Controller
                 return response()->json([
                     'type'  => 'menu',
                     'items' => $payload->items,
-                    'intro' => null, // ahora el front pone un texto predefinido
+                    'intro' => null,
                     'title' => $payload->menu_title
                 ]);
             }
@@ -56,7 +91,9 @@ class ChatbotController extends Controller
     {
         try {
             $client = new Client();
-            $menus = MenuItem::all(['id','title'])->map(fn($m)=> "{$m->id} - {$m->title}")->implode("\n");
+            $menus = MenuItem::all(['id','title'])
+                ->map(fn($m)=> "{$m->id} - {$m->title}")
+                ->implode("\n");
 
             $prompt = "
                 Devuelve SOLO JSON:
@@ -123,7 +160,7 @@ class ChatbotController extends Controller
     }
 
     /**
-     * Genera la respuesta de la IA
+     * Genera la respuesta de la IA (NO MODIFICADA)
      */
     private function respuestaAI($mensaje, $contexto = null)
     {
@@ -132,28 +169,24 @@ class ChatbotController extends Controller
             $messages = session('chat_history', []);
 
             if (empty($messages)) {
-                $contextPrompt = $contexto
-                    ? "Información interna:\n\n$contexto\n\n"
-                    : "No se encontró información interna.\n\n";
-
                 $messages[] = [
                     'role' => 'system',
                     'content' =>
-                         "Eres un asistente institucional.
-            
-                            REGLAS ESTRICTAS:
-                            - Usa EXCLUSIVAMENTE la información del CONTEXTO.
-                            - NO inventes datos.
-                            - NO hagas suposiciones.
-                            - NO agregues información externa.
-                            - Si el contexto NO contiene la respuesta, responde EXACTAMENTE:
-                            'No tengo información suficiente para responder esa pregunta. ¿Podrías darme un poco más de contexto o reformularla?'"
-                    ];
+                        "Eres un asistente institucional.
 
-                    $messages[] = [
-                        'role' => 'system',
-                        'content' => "CONTEXTO DISPONIBLE:\n\n" . $contexto
-                    ];
+                        REGLAS ESTRICTAS:
+                        - Usa EXCLUSIVAMENTE la información del CONTEXTO.
+                        - NO inventes datos.
+                        - NO hagas suposiciones.
+                        - NO agregues información externa.
+                        - Si el contexto NO contiene la respuesta, responde EXACTAMENTE:
+                        'No tengo información suficiente para responder esa pregunta. ¿Podrías darme un poco más de contexto o reformularla?'"
+                ];
+
+                $messages[] = [
+                    'role' => 'system',
+                    'content' => "CONTEXTO DISPONIBLE:\n\n" . $contexto
+                ];
             }
 
             $messages[] = [
@@ -204,8 +237,8 @@ class ChatbotController extends Controller
         return trim(preg_replace('/\s+/', ' ', $texto));
     }
 
-    /** 
-     * Limpia el historial de chat
+    /**
+     * Limpia historial del chatbot
      */
     public function clearSession(Request $request)
     {
