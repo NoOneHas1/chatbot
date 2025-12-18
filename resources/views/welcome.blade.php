@@ -387,6 +387,15 @@ const msgInput = document.getElementById("msgInput");
 
 let acceptedTerms = false;
 
+
+let supportSessionId = localStorage.getItem('support_session_id');
+
+if (!supportSessionId) {
+    supportSessionId = crypto.randomUUID();
+    localStorage.setItem('support_session_id', supportSessionId);
+}
+
+
 // —————————————————————————————————————————————
 // TEXTOS INTRODUCTORIOS PARA MENÚS 
 // —————————————————————————————————————————————
@@ -508,7 +517,7 @@ function showMenuButtons(items, messageText = null, isRoot = false) {
         const btn = document.createElement("button");
         btn.classList.add("menu-btn");
         btn.textContent = item.title;
-        btn.onclick = () => selectMenu(item.id, item.title);
+        btn.onclick = () => selectMenu(item);
         wrapper.appendChild(btn);
     });
 
@@ -529,37 +538,66 @@ function showMenuButtons(items, messageText = null, isRoot = false) {
 // —————————————————————————————————————————————
 // SELECCIONAR MENÚ / SUBMENÚ
 // —————————————————————————————————————————————
-async function selectMenu(menuId, menuText = null) {
-    if (menuText) {
-        const userMsg = document.createElement("div");
-        userMsg.classList.add("message", "user");
-        userMsg.textContent = menuText;
-        chatMessages.appendChild(userMsg);
-    }
+    async function selectMenu(item) {
 
-    const typing = showTyping();
+        // acción especial
+        if (item.action === 'contact_advisor') {
+            showBotMessage("Te estamos conectando con un asesor...");
 
-    try {
-        const res = await fetch(`/api/menu/${menuId}`);
-        const data = await res.json();
+            try {
+                const res = await fetch('/api/support/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: supportSessionId
+                    })
+                });
 
-        typing.remove();
 
-        if (data.type === "menu") {
-            showMenuButtons(data.items);
-        } 
-        else if (data.type === "response") {
-            showBotMessage(data.text);
-        } 
-        else {
-            showBotMessage("No hay información disponible.");
+                const data = await res.json();
+
+                if (data.advisor_assigned) {
+                    showBotMessage("Un asesor se ha conectado contigo.");
+                } else {
+                    showBotMessage("Todos los asesores están ocupados, espera un momento.");
+                }
+
+            } catch (e) {
+                typing.remove();
+                console.error(e);
+                showBotMessage('Error técnico al iniciar el soporte.');
+            }
+
+
+            return;
         }
 
-    } catch (err) {
-        typing.remove();
-        showBotMessage("Error al cargar el menú.");
+        // comportamiento normal (menús)
+        const userMsg = document.createElement("div");
+        userMsg.classList.add("message", "user");
+        userMsg.textContent = item.title;
+        chatMessages.appendChild(userMsg);
+
+        const typing = showTyping();
+
+        try {
+            const res = await fetch(`/api/menu/${item.id}`);
+            const data = await res.json();
+
+            typing.remove();
+
+            if (data.type === "menu") {
+                showMenuButtons(data.items);
+            } else if (data.type === "response") {
+                showBotMessage(data.text);
+            }
+
+        } catch {
+            typing.remove();
+            showBotMessage("Error al cargar el menú.");
+        }
     }
-}
+
 
 // —————————————————————————————————————————————
 // ANIMACIÓN "tres puntos"

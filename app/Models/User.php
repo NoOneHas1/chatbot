@@ -45,4 +45,9 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function supportRequests()
+    {
+        return $this->hasMany(SupportRequest::class, 'advisor_id');
+    }
 }
